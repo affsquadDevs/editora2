@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { detectPreferredLocale, isSupportedLocale } from './i18n/config';
 
 const PUBLIC_FILE = /\.(.*)$/;
+const SUPPORTED_LOCALES = new Set(['en', 'uk', 'de', 'es', 'fr', 'it']);
+const DEFAULT_LOCALE = 'en';
 const LOCALE_AWARE_PATHS = new Set([
 	'/',
 	'/about',
@@ -32,10 +33,13 @@ export function middleware(req: NextRequest) {
 			return NextResponse.next();
 		}
 
-		const cookieLocale = req.cookies.get('NEXT_LOCALE')?.value;
-		const detected = isSupportedLocale(cookieLocale)
-			? cookieLocale
-			: detectPreferredLocale(req.headers.get('accept-language'));
+		const cookieLocale = req.cookies.get('NEXT_LOCALE')?.value?.toLowerCase();
+		const headerLocale = req.headers.get('accept-language')?.split(',')[0]?.split('-')[0]?.trim().toLowerCase();
+		const detected = SUPPORTED_LOCALES.has(cookieLocale ?? '')
+			? (cookieLocale as string)
+			: SUPPORTED_LOCALES.has(headerLocale ?? '')
+				? (headerLocale as string)
+				: DEFAULT_LOCALE;
 
 		// Normalize locale-aware non-prefixed routes into the preferred locale path.
 		if (LOCALE_AWARE_PATHS.has(pathname)) {
@@ -47,7 +51,7 @@ export function middleware(req: NextRequest) {
 		// If URL already has locale prefix, forward with x-locale and x-pathname headers
 		// so server components and generateMetadata can access locale + pathname.
 		const pathLocale = pathname.split('/')[1];
-		const activeLocale = isSupportedLocale(pathLocale) ? pathLocale : detected;
+		const activeLocale = SUPPORTED_LOCALES.has(pathLocale) ? pathLocale : detected;
 
 		const requestHeaders = new Headers(req.headers);
 		requestHeaders.set('x-locale', activeLocale);
