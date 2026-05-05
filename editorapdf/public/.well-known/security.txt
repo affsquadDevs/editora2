@@ -1,0 +1,10 @@
+Contact: security@pdfiles.io
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: en, uk
+Canonical: https://pdfiles.io/.well-known/security.txt
+Policy: https://pdfiles.io/security-policy
+Acknowledgments: https://pdfiles.io/security-acknowledgments
+
+# Security Policy
+# If you discover a security vulnerability, please report it to us immediately.
+# We take security seriously and will respond promptly to all reports.

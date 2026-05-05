@@ -1,0 +1,5768 @@
+'use client';
+
+import { useState, useCallback, useRef, useEffect } from 'react';
+import type { PdfTool } from './ToolsPanel';
+import {
+  ArrowLeft, CheckCircle, Upload, X, FileText, Plus,
+  CircleCheck, GripVertical, Zap, PenSquare, Trash2
+} from 'lucide-react';
+import { mergePdf, downloadMergedPdf } from '../lib/pdf/mergePdf';
+import { splitPdf, parsePageRange, downloadSplitPdfs } from '../lib/pdf/splitPdf';
+import { deletePages, downloadPdf as downloadDeletePdf } from '../lib/pdf/deletePages';
+import { extractPages, downloadPdf as downloadExtractPdf } from '../lib/pdf/extractPages';
+import { rotatePages, downloadPdf as downloadRotatePdf } from '../lib/pdf/rotatePages';
+import { insertBlankPages, downloadPdf as downloadInsertBlankPdf } from '../lib/pdf/insertBlankPages';
+import { duplicatePages, downloadPdf as downloadDuplicatePdf } from '../lib/pdf/duplicatePages';
+import { reversePageOrder, downloadPdf as downloadReversePdf } from '../lib/pdf/reversePageOrder';
+import { splitBySizeString, downloadSplitPdfs as downloadSplitBySizePdfs, formatBytes, parseSizeToBytes } from '../lib/pdf/splitBySize';
+import { splitByBookmarksSimple, downloadSplitPdfs as downloadSplitByBookmarksPdfs, getBookmarkInfo } from '../lib/pdf/splitByBookmarks';
+import { signPdf, downloadSignedPdf } from '../lib/pdf/signPdf';
+import { loadPdfDocument, getPdfPagesInfo } from '../lib/pdf/pdfRender';
+import { sanitizePdf, downloadSanitizedPdf } from '../lib/pdf/sanitizePdf';
+import { certificateSignPdf, downloadCertificateSignedPdf } from '../lib/pdf/certificateSignPdf';
+import { exportPdf } from '../lib/pdf/exportPdf';
+import { usePdfStore } from '../store/pdfStore';
+import PageRangeSelector from './PageRangeSelector';
+import PageSelector from './PageSelector';
+import PageReorder from './PageReorder';
+import PageRotate from './PageRotate';
+import SignaturePad from './SignaturePad';
+import SignaturePositionSelector from './SignaturePositionSelector';
+import RedactSelector from './RedactSelector';
+import ToolInfo from './ToolInfo';
+import { redactPdf, downloadRedactedPdf, type RedactionArea } from '../lib/pdf/redactPdf';
+import { pdfToImages, downloadImagesAsZip, type ImageFormat, type ImageResult } from '../lib/pdf/pdfToImages';
+import { imagesToPdf, downloadPdf as downloadImagesPdf } from '../lib/pdf/imagesToPdf';
+import { pdfToWord, downloadWord } from '../lib/pdf/pdfToWord';
+import { pdfToExcel, downloadExcel } from '../lib/pdf/pdfToExcel';
+import { pdfToText, downloadText } from '../lib/pdf/pdfToText';
+import { pdfToCsv, downloadCsv, downloadCsvFiles } from '../lib/pdf/pdfToCsv';
+import { pdfToHtml, downloadHtml } from '../lib/pdf/pdfToHtml';
+import { pdfToMarkdown, downloadMarkdown } from '../lib/pdf/pdfToMarkdown';
+import { pdfToPptx, downloadPptx } from '../lib/pdf/pdfToPptx';
+import { htmlToPdf, downloadPdf as downloadHtmlPdf } from '../lib/pdf/htmlToPdf';
+import { wordToPdf, downloadPdf as downloadWordPdf } from '../lib/pdf/wordToPdf';
+import { excelToPdf, downloadPdf as downloadExcelPdf } from '../lib/pdf/excelToPdf';
+import { compressPdf, downloadCompressedPdf } from '../lib/pdf/compressPdf';
+import { addWatermark, downloadWatermarkedPdf, type WatermarkConfig } from '../lib/pdf/addWatermark';
+import WatermarkPreview from './WatermarkPreview';
+import { addPageNumbers, downloadNumberedPdf } from '../lib/pdf/addPageNumbers';
+import { cropPages, downloadCroppedPdf } from '../lib/pdf/cropPages';
+import { useAppTranslations } from '../i18n/TranslationProvider';
+import { resizePages, downloadResizedPdf } from '../lib/pdf/resizePages';
+import { flattenPdf, downloadFlattenedPdf } from '../lib/pdf/flattenPdf';
+import { editMetadata, downloadMetadataPdf } from '../lib/pdf/editMetadata';
+import { extractImages, downloadExtractedImages } from '../lib/pdf/extractImages';
+import { removeImages, downloadNoImagesPdf } from '../lib/pdf/removeImages';
+import { optimizeImages, downloadOptimizedPdf } from '../lib/pdf/optimizeImages';
+import { addQrCode, downloadQrCodePdf } from '../lib/pdf/addQrCode';
+import { MM_TO_PT } from '../lib/pdf/pdfUnits';
+import QrCodePreview from './QrCodePreview';
+import BarcodePreview from './BarcodePreview';
+import type { BarcodeFormat } from '../lib/pdf/addBarcode';
+import { addBarcode, downloadBarcodePdf } from '../lib/pdf/addBarcode';
+import { addBookmarks, downloadBookmarkedPdf } from '../lib/pdf/addBookmarks';
+import { addHyperlinks, downloadHyperlinkedPdf, normalizeUrl } from '../lib/pdf/addHyperlinks';
+import HyperlinkPreview from './HyperlinkPreview';
+import { addAttachments, downloadAttachedPdf } from '../lib/pdf/addAttachments';
+import { addStamp, downloadStampedPdf } from '../lib/pdf/addStamp';
+import { batesNumbering, downloadBatesPdf } from '../lib/pdf/batesNumbering';
+import { fillSign, downloadFillSignPdf } from '../lib/pdf/fillSign';
+import { createForm, downloadFormPdf } from '../lib/pdf/createForm';
+import { ocrPdf, downloadOcrPdf } from '../lib/pdf/ocrPdf';
+import { makeSearchable, downloadSearchablePdf } from '../lib/pdf/makeSearchable';
+import { getPdfStatistics } from '../lib/pdf/pdfStatistics';
+import { linearizePdf, downloadLinearizedPdf } from '../lib/pdf/linearizePdf';
+import { comparePdfs } from '../lib/pdf/comparePdfs';
+import { repairPdf, downloadRepairedPdf } from '../lib/pdf/repairPdf';
+import { grayscalePdf, downloadGrayscalePdf } from '../lib/pdf/grayscalePdf';
+import { invertColors, downloadInvertedPdf } from '../lib/pdf/invertColors';
+import { removeAnnotations, downloadNoAnnotationsPdf } from '../lib/pdf/removeAnnotations';
+import { convertColorSpace, downloadColorSpacePdf } from '../lib/pdf/convertColorSpace';
+import { checkAccessibility } from '../lib/pdf/accessibilityCheck';
+import { convertToPdfa, downloadPdfa } from '../lib/pdf/pdfaConversion';
+import { convertToPdfx, downloadPdfx } from '../lib/pdf/pdfxConversion';
+import { validatePdf } from '../lib/pdf/validatePdf';
+
+interface ToolViewProps {
+  tool: PdfTool;
+  onBack: () => void;
+}
+// Tool-specific configurations
+const toolConfigs: Record<string, {
+  acceptMultiple: boolean;
+  acceptTypes?: string;
+  uploadLabel: string;
+  uploadDescription: string;
+  actionLabel: string;
+  resultLabel: string;
+  steps: string[];
+}> = {
+  // ── Organize & Pages ──
+  merge:             { acceptMultiple: true,  uploadLabel: 'Drop PDF files here to merge',           uploadDescription: 'You can upload multiple PDF files at once',              actionLabel: 'Merge PDFs',            resultLabel: 'Merged PDF',        steps: ['Upload 2 or more PDF files', 'Drag to reorder if needed', 'Click "Merge PDFs" to combine'] },
+  split:             { acceptMultiple: false, uploadLabel: 'Drop a PDF file to split',               uploadDescription: 'Upload the PDF you want to split into parts',           actionLabel: 'Split PDF',             resultLabel: 'Split Files',       steps: ['Upload a PDF file', 'Select pages or page ranges', 'Click "Split PDF" to create separate files'] },
+  'delete-pages':    { acceptMultiple: false, uploadLabel: 'Drop a PDF file to remove pages',        uploadDescription: 'Upload the PDF from which you want to delete pages',    actionLabel: 'Delete Selected Pages', resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Select pages to delete', 'Click "Delete Selected Pages" to apply'] },
+  'extract-pages':   { acceptMultiple: false, uploadLabel: 'Drop a PDF file to extract pages',       uploadDescription: 'Upload the PDF from which you want to extract pages',   actionLabel: 'Extract Pages',         resultLabel: 'Extracted PDF',     steps: ['Upload a PDF file', 'Select pages to extract', 'Click "Extract Pages" to create a new PDF'] },
+  reorder:           { acceptMultiple: false, uploadLabel: 'Drop a PDF file to reorder pages',       uploadDescription: 'Upload the PDF you want to rearrange',                  actionLabel: 'Save New Order',        resultLabel: 'Reordered PDF',     steps: ['Upload a PDF file', 'Drag & drop pages to reorder', 'Click "Save New Order" to apply'] },
+  rotate:            { acceptMultiple: false, uploadLabel: 'Drop a PDF file to rotate pages',        uploadDescription: 'Upload the PDF with pages you want to rotate',          actionLabel: 'Rotate & Save',         resultLabel: 'Rotated PDF',       steps: ['Upload a PDF file', 'Select rotation angle per page', 'Click "Rotate & Save" to apply'] },
+  'insert-blank':    { acceptMultiple: false, uploadLabel: 'Drop a PDF to insert blank pages',       uploadDescription: 'Upload the PDF where you want to add empty pages',      actionLabel: 'Insert Blank Pages',    resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Choose positions for blank pages', 'Click "Insert Blank Pages" to apply'] },
+  'duplicate-pages': { acceptMultiple: false, uploadLabel: 'Drop a PDF to duplicate pages',          uploadDescription: 'Upload the PDF with pages you want to duplicate',       actionLabel: 'Duplicate Pages',       resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Select pages to duplicate', 'Click "Duplicate Pages" to apply'] },
+  'reverse-order':   { acceptMultiple: false, uploadLabel: 'Drop a PDF to reverse page order',       uploadDescription: 'Upload the PDF to flip the page order',                 actionLabel: 'Reverse Order',         resultLabel: 'Reversed PDF',      steps: ['Upload a PDF file', 'Preview the reversed order', 'Click "Reverse Order" to apply'] },
+  'split-by-size':   { acceptMultiple: false, uploadLabel: 'Drop a PDF to split by size',            uploadDescription: 'Upload the PDF to split into size-limited parts',       actionLabel: 'Split by Size',         resultLabel: 'Split Files',       steps: ['Upload a PDF file', 'Set max file size per part', 'Click "Split by Size" to split'] },
+  'split-by-bookmarks': { acceptMultiple: false, uploadLabel: 'Drop a PDF to split by bookmarks',   uploadDescription: 'Upload a PDF with bookmarks/chapters to split',         actionLabel: 'Split by Bookmarks',    resultLabel: 'Split Files',       steps: ['Upload a PDF with bookmarks', 'Choose bookmark level to split at', 'Click "Split by Bookmarks"'] },
+
+  // ── Security & Protection ──
+  sign:              { acceptMultiple: false, uploadLabel: 'Drop a PDF file to sign',                uploadDescription: 'Upload the PDF you want to add a digital signature to', actionLabel: 'Apply Signature',       resultLabel: 'Signed PDF',        steps: ['Upload a PDF file', 'Draw, type, or upload your signature', 'Place the signature and click "Apply Signature"'] },
+  redact:            { acceptMultiple: false, uploadLabel: 'Drop a PDF file to redact',              uploadDescription: 'Upload the PDF with sensitive content to black out',     actionLabel: 'Apply Redaction',       resultLabel: 'Redacted PDF',      steps: ['Upload a PDF file', 'Select areas or text to redact', 'Click "Apply Redaction" — this is permanent'] },
+  'remove-hidden-data': { acceptMultiple: false, uploadLabel: 'Drop a PDF to sanitize',             uploadDescription: 'Upload the PDF to remove all hidden data',              actionLabel: 'Sanitize PDF',          resultLabel: 'Sanitized PDF',     steps: ['Upload a PDF file', 'Review hidden data found', 'Click "Sanitize PDF" to remove all hidden content'] },
+  certificate:       { acceptMultiple: false, uploadLabel: 'Drop a PDF to certificate-sign',         uploadDescription: 'Upload the PDF and your .pfx/.p12 certificate',         actionLabel: 'Sign with Certificate', resultLabel: 'Certificate-Signed PDF', steps: ['Upload a PDF file', 'Upload your digital certificate (.pfx/.p12)', 'Click "Sign with Certificate"'] },
+
+  // ── Convert ──
+  'pdf-to-images':   { acceptMultiple: false, uploadLabel: 'Drop a PDF file to convert',             uploadDescription: 'Upload the PDF you want to convert to images',          actionLabel: 'Convert to Images',     resultLabel: 'Image Files',       steps: ['Upload a PDF file', 'Choose image format & quality', 'Click "Convert to Images" to download'] },
+  'images-to-pdf':   { acceptMultiple: true,  acceptTypes: '.png,.jpg,.jpeg,.webp,.gif,.bmp,image/*', uploadLabel: 'Drop image files here', uploadDescription: 'Upload PNG, JPEG, WebP images to combine into PDF', actionLabel: 'Create PDF', resultLabel: 'Combined PDF', steps: ['Upload image files', 'Drag to reorder if needed', 'Click "Create PDF" to combine'] },
+  'pdf-to-word':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert to Word',          uploadDescription: 'Upload the PDF you want to convert to DOCX',            actionLabel: 'Convert to Word',       resultLabel: 'Word Document',     steps: ['Upload a PDF file', 'Choose formatting options', 'Click "Convert to Word" to download .docx'] },
+  'pdf-to-excel':    { acceptMultiple: false, uploadLabel: 'Drop a PDF with tables',                 uploadDescription: 'Upload the PDF with tables to extract to Excel',        actionLabel: 'Convert to Excel',      resultLabel: 'Excel Spreadsheet', steps: ['Upload a PDF with tables', 'Select pages with tables', 'Click "Convert to Excel" to download .xlsx'] },
+  'pdf-to-text':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to extract text',             uploadDescription: 'Upload the PDF to extract all text content',            actionLabel: 'Extract Text',          resultLabel: 'Text File',         steps: ['Upload a PDF file', 'Choose pages to extract from', 'Click "Extract Text" to download .txt'] },
+  'pdf-to-csv':      { acceptMultiple: false, uploadLabel: 'Drop a PDF with tables',                 uploadDescription: 'Upload the PDF to extract tables as CSV',               actionLabel: 'Extract to CSV',        resultLabel: 'CSV Files',         steps: ['Upload a PDF with tables', 'Select tables to extract', 'Click "Extract to CSV" to download'] },
+  'pdf-to-html':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert to HTML',          uploadDescription: 'Upload the PDF to convert into a web page',             actionLabel: 'Convert to HTML',       resultLabel: 'HTML File',         steps: ['Upload a PDF file', 'Choose conversion options', 'Click "Convert to HTML" to download'] },
+  'pdf-to-markdown': { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert to Markdown',      uploadDescription: 'Upload the PDF to extract content as Markdown',         actionLabel: 'Convert to Markdown',   resultLabel: 'Markdown File',     steps: ['Upload a PDF file', 'Preview extracted content', 'Click "Convert to Markdown" to download .md'] },
+  'pdf-to-pptx':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert to PowerPoint',    uploadDescription: 'Upload the PDF to convert to presentation slides',      actionLabel: 'Convert to PowerPoint', resultLabel: 'PowerPoint File',   steps: ['Upload a PDF file', 'Choose slide options', 'Click "Convert to PowerPoint" to download .pptx'] },
+  'html-to-pdf':     { acceptMultiple: false, acceptTypes: '.html,.htm,text/html', uploadLabel: 'Drop an HTML file', uploadDescription: 'Upload HTML file to convert to PDF', actionLabel: 'Convert to PDF', resultLabel: 'PDF Document', steps: ['Upload HTML file or enter a URL', 'Configure page size & margins', 'Click "Convert to PDF" to download'] },
+  'word-to-pdf':     { acceptMultiple: false, acceptTypes: '.doc,.docx', uploadLabel: 'Drop a Word document', uploadDescription: 'Upload .doc or .docx file to convert to PDF', actionLabel: 'Convert to PDF', resultLabel: 'PDF Document', steps: ['Upload a Word document', 'Preview conversion settings', 'Click "Convert to PDF" to download'] },
+  'excel-to-pdf':    { acceptMultiple: false, acceptTypes: '.xls,.xlsx', uploadLabel: 'Drop an Excel file', uploadDescription: 'Upload .xls or .xlsx file to convert to PDF', actionLabel: 'Convert to PDF', resultLabel: 'PDF Document', steps: ['Upload an Excel spreadsheet', 'Choose sheets to include', 'Click "Convert to PDF" to download'] },
+
+  // ── Edit & Enhance ──
+  compress:          { acceptMultiple: false, uploadLabel: 'Drop a PDF file to compress',            uploadDescription: 'Upload the PDF you want to reduce in size',             actionLabel: 'Compress PDF',          resultLabel: 'Compressed PDF',    steps: ['Upload a PDF file', 'Choose compression level', 'Click "Compress PDF" to reduce size'] },
+  'add-watermark':   { acceptMultiple: false, uploadLabel: 'Drop a PDF file to watermark',           uploadDescription: 'Upload the PDF you want to add a watermark to',         actionLabel: 'Add Watermark',         resultLabel: 'Watermarked PDF',   steps: ['Upload a PDF file', 'Configure watermark text or image', 'Click "Add Watermark" to apply'] },
+  'page-numbers':    { acceptMultiple: false, uploadLabel: 'Drop a PDF to add page numbers',         uploadDescription: 'Upload the PDF you want to number',                     actionLabel: 'Add Page Numbers',      resultLabel: 'Numbered PDF',      steps: ['Upload a PDF file', 'Choose position, style, and starting number', 'Click "Add Page Numbers" to apply'] },
+  crop:              { acceptMultiple: false, uploadLabel: 'Drop a PDF file to crop',                uploadDescription: 'Upload the PDF with pages to crop or trim',             actionLabel: 'Crop Pages',            resultLabel: 'Cropped PDF',       steps: ['Upload a PDF file', 'Set crop margins or draw crop area', 'Click "Crop Pages" to apply'] },
+  resize:            { acceptMultiple: false, uploadLabel: 'Drop a PDF file to resize',              uploadDescription: 'Upload the PDF to change page dimensions',              actionLabel: 'Resize Pages',          resultLabel: 'Resized PDF',       steps: ['Upload a PDF file', 'Choose target page size (A4, Letter, custom)', 'Click "Resize Pages" to apply'] },
+  grayscale:         { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert to grayscale',     uploadDescription: 'Upload the PDF to convert to black & white',            actionLabel: 'Convert to Grayscale',  resultLabel: 'Grayscale PDF',     steps: ['Upload a PDF file', 'Preview grayscale conversion', 'Click "Convert to Grayscale" to apply'] },
+  'invert-colors':   { acceptMultiple: false, uploadLabel: 'Drop a PDF to invert colors',            uploadDescription: 'Upload the PDF to invert colors (dark mode)',           actionLabel: 'Invert Colors',         resultLabel: 'Inverted PDF',      steps: ['Upload a PDF file', 'Preview inverted output', 'Click "Invert Colors" to apply'] },
+  flatten:           { acceptMultiple: false, uploadLabel: 'Drop a PDF file to flatten',             uploadDescription: 'Upload a PDF with forms or annotations to flatten',     actionLabel: 'Flatten PDF',           resultLabel: 'Flattened PDF',     steps: ['Upload a PDF file', 'Choose what to flatten (forms, annotations, or both)', 'Click "Flatten PDF" to apply'] },
+  'remove-annotations': { acceptMultiple: false, uploadLabel: 'Drop a PDF to remove annotations',   uploadDescription: 'Upload the PDF to strip all comments and highlights',   actionLabel: 'Remove Annotations',    resultLabel: 'Clean PDF',         steps: ['Upload a PDF file', 'Review annotations to remove', 'Click "Remove Annotations" to apply'] },
+
+  // ── Content & Media ──
+  'extract-images':  { acceptMultiple: false, uploadLabel: 'Drop a PDF to extract images',           uploadDescription: 'Upload the PDF to pull out all embedded images',        actionLabel: 'Extract Images',        resultLabel: 'Image Files',       steps: ['Upload a PDF file', 'Choose image format (PNG/JPEG)', 'Click "Extract Images" to download all'] },
+  'remove-images':   { acceptMultiple: false, uploadLabel: 'Drop a PDF to remove images',            uploadDescription: 'Upload the PDF to strip all images (keep text)',        actionLabel: 'Remove Images',         resultLabel: 'Text-Only PDF',     steps: ['Upload a PDF file', 'Preview text-only result', 'Click "Remove Images" to apply'] },
+  'optimize-images': { acceptMultiple: false, uploadLabel: 'Drop a PDF to optimize images',          uploadDescription: 'Upload the PDF to downscale/optimize embedded images',  actionLabel: 'Optimize Images',       resultLabel: 'Optimized PDF',     steps: ['Upload a PDF file', 'Choose quality/resolution target', 'Click "Optimize Images" to apply'] },
+  'add-qr-code':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to add a QR code',            uploadDescription: 'Upload the PDF to insert QR codes on pages',            actionLabel: 'Add QR Code',           resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Enter QR content (URL, text) & position', 'Click "Add QR Code" to apply'] },
+  'add-barcode':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to add a barcode',            uploadDescription: 'Upload the PDF to insert barcodes on pages',            actionLabel: 'Add Barcode',           resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Enter barcode data & choose type', 'Click "Add Barcode" to apply'] },
+  'add-bookmarks':   { acceptMultiple: false, uploadLabel: 'Drop a PDF to add bookmarks',            uploadDescription: 'Upload the PDF to create or edit bookmarks',            actionLabel: 'Save Bookmarks',        resultLabel: 'Bookmarked PDF',    steps: ['Upload a PDF file', 'Add/edit bookmark entries', 'Click "Save Bookmarks" to apply'] },
+  'add-hyperlinks':  { acceptMultiple: false, uploadLabel: 'Drop a PDF to add hyperlinks',           uploadDescription: 'Upload the PDF to add clickable links',                 actionLabel: 'Apply Links',           resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Add link areas with URLs', 'Click "Apply Links" to save'] },
+  'add-attachments': { acceptMultiple: false, uploadLabel: 'Drop a PDF to embed attachments',        uploadDescription: 'Upload the PDF to embed files inside it',               actionLabel: 'Embed Files',           resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Add files to embed', 'Click "Embed Files" to save'] },
+
+  // ── Forms & Signing ──
+  'fill-sign':       { acceptMultiple: false, uploadLabel: 'Drop a PDF form to fill & sign',         uploadDescription: 'Upload the PDF form you want to fill out',              actionLabel: 'Save Filled PDF',       resultLabel: 'Filled PDF',        steps: ['Upload a PDF form', 'Fill in fields and add your signature', 'Click "Save Filled PDF" to download'] },
+  stamp:             { acceptMultiple: false, uploadLabel: 'Drop a PDF file to stamp',               uploadDescription: 'Upload the PDF to add a stamp',                        actionLabel: 'Apply Stamp',           resultLabel: 'Stamped PDF',       steps: ['Upload a PDF file', 'Choose stamp type, text, and placement', 'Click "Apply Stamp" to save'] },
+  'bates-numbering': { acceptMultiple: false, uploadLabel: 'Drop a PDF for Bates numbering',         uploadDescription: 'Upload the PDF to add sequential Bates numbers',        actionLabel: 'Apply Bates Numbers',   resultLabel: 'Numbered PDF',      steps: ['Upload a PDF file', 'Set prefix, starting number, and position', 'Click "Apply Bates Numbers"'] },
+  'create-form':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to add form fields',          uploadDescription: 'Upload the PDF to add interactive form fields',          actionLabel: 'Save Form PDF',         resultLabel: 'Form PDF',          steps: ['Upload a PDF file', 'Add text fields, checkboxes, dropdowns', 'Click "Save Form PDF" to download'] },
+
+  // ── OCR & Text ──
+  ocr:               { acceptMultiple: false, uploadLabel: 'Drop a scanned PDF or image',            uploadDescription: 'Upload a scanned document to extract text via OCR',     actionLabel: 'Run OCR',               resultLabel: 'Recognized PDF',    steps: ['Upload a scanned PDF or image', 'Select language for recognition', 'Click "Run OCR" to extract text'] },
+  'searchable-pdf':  { acceptMultiple: false, uploadLabel: 'Drop a scanned PDF',                     uploadDescription: 'Upload a scanned PDF to add searchable text layer',     actionLabel: 'Make Searchable',       resultLabel: 'Searchable PDF',    steps: ['Upload a scanned PDF', 'Select recognition language', 'Click "Make Searchable" to add text layer'] },
+
+  // ── Analyze & Optimize ──
+  compare:           { acceptMultiple: true,  uploadLabel: 'Drop two PDF files to compare',          uploadDescription: 'Upload two PDF files to highlight differences',         actionLabel: 'Compare PDFs',          resultLabel: 'Comparison Report', steps: ['Upload exactly 2 PDF files', 'Review comparison settings', 'Click "Compare PDFs" to see differences'] },
+  repair:            { acceptMultiple: false, uploadLabel: 'Drop a corrupted PDF file',              uploadDescription: 'Upload the PDF that is damaged or won\'t open',         actionLabel: 'Repair PDF',            resultLabel: 'Repaired PDF',      steps: ['Upload the corrupted PDF file', 'Wait for automatic analysis', 'Click "Repair PDF" to attempt recovery'] },
+  metadata:          { acceptMultiple: false, uploadLabel: 'Drop a PDF to edit metadata',            uploadDescription: 'Upload the PDF to view or modify document properties',  actionLabel: 'Save Metadata',         resultLabel: 'Updated PDF',       steps: ['Upload a PDF file', 'Edit title, author, subject, keywords', 'Click "Save Metadata" to apply changes'] },
+  'pdf-statistics':  { acceptMultiple: false, uploadLabel: 'Drop a PDF to analyze',                  uploadDescription: 'Upload the PDF to see detailed stats',                  actionLabel: 'Analyze PDF',           resultLabel: 'Analysis Report',   steps: ['Upload a PDF file', 'Wait for automatic analysis', 'View page count, word count, fonts, images, file size breakdown'] },
+  linearize:         { acceptMultiple: false, uploadLabel: 'Drop a PDF to linearize',                uploadDescription: 'Upload the PDF to optimize for fast web viewing',       actionLabel: 'Linearize PDF',         resultLabel: 'Linearized PDF',    steps: ['Upload a PDF file', 'Preview optimization', 'Click "Linearize PDF" to apply'] },
+  'color-space':     { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert colors',           uploadDescription: 'Upload the PDF to convert between RGB and CMYK',        actionLabel: 'Convert Colors',        resultLabel: 'Converted PDF',     steps: ['Upload a PDF file', 'Choose target color space (RGB or CMYK)', 'Click "Convert Colors" to apply'] },
+  accessibility:     { acceptMultiple: false, uploadLabel: 'Drop a PDF for accessibility check',     uploadDescription: 'Upload the PDF to check WCAG/508 compliance',           actionLabel: 'Check Accessibility',   resultLabel: 'Accessibility Report', steps: ['Upload a PDF file', 'Run automated checks', 'Review accessibility issues and recommendations'] },
+  pdfa:              { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert to PDF/A',         uploadDescription: 'Upload the PDF to convert to archival format',          actionLabel: 'Convert to PDF/A',      resultLabel: 'PDF/A Document',    steps: ['Upload a PDF file', 'Choose PDF/A conformance level', 'Click "Convert to PDF/A" to save'] },
+  pdfx:              { acceptMultiple: false, uploadLabel: 'Drop a PDF to convert to PDF/X',         uploadDescription: 'Upload the PDF for print-ready output',                 actionLabel: 'Convert to PDF/X',      resultLabel: 'PDF/X Document',    steps: ['Upload a PDF file', 'Choose PDF/X profile', 'Click "Convert to PDF/X" to save'] },
+  validate:          { acceptMultiple: false, uploadLabel: 'Drop a PDF to validate',                 uploadDescription: 'Upload the PDF to check structure and compliance',       actionLabel: 'Validate PDF',          resultLabel: 'Validation Report', steps: ['Upload a PDF file', 'Choose validation profile', 'Click "Validate PDF" to check compliance'] },
+};
+
+const OPTIMIZE_PROFILE_MAX_RES: Record<'screen' | 'ebook' | 'print', number> = {
+  screen: 960,
+  ebook: 1600,
+  print: 3000,
+};
+
+export default function ToolView({ tool, onBack }: ToolViewProps) {
+  const { t } = useAppTranslations();
+  const tr = (key: string, fallback: string) => (t(key) === key ? fallback : t(key));
+  const [files, setFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const [mergedPdfBytes, setMergedPdfBytes] = useState<Uint8Array | null>(null);
+  const [splitPdfResults, setSplitPdfResults] = useState<Array<{ bytes: Uint8Array; filename: string }> | null>(null);
+  const [processedPdfBytes, setProcessedPdfBytes] = useState<Uint8Array | null>(null);
+  const [processedText, setProcessedText] = useState<string | null>(null);
+  const [processedCsvFiles, setProcessedCsvFiles] = useState<Array<{ bytes: Uint8Array; filename: string }> | null>(null);
+  const [pageRange, setPageRange] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState<number | null>(null);
+  const [pageRangeWarning, setPageRangeWarning] = useState<string | null>(null);
+  const [pageOrder, setPageOrder] = useState<number[]>([]); // For reorder: array of original indices in new order
+  const [pageRotations, setPageRotations] = useState<{ [pageNumber: number]: number }>({}); // For rotate: map of page number to rotation
+  const [insertPosition, setInsertPosition] = useState<'beginning' | 'end' | 'after'>('end'); // For insert-blank: position to insert
+  const [numberOfBlankPages, setNumberOfBlankPages] = useState<number>(1); // For insert-blank: number of blank pages
+  const [afterPageNumber, setAfterPageNumber] = useState<number>(1); // For insert-blank: page number when position is 'after'
+  const [duplicatePageRange, setDuplicatePageRange] = useState<string>(''); // For duplicate-pages: page range to duplicate
+  const [numberOfCopies, setNumberOfCopies] = useState<number>(1); // For duplicate-pages: number of copies
+  const [maxFileSize, setMaxFileSize] = useState<string>('10 MB'); // For split-by-size: maximum file size (preset)
+  const [customSizeValue, setCustomSizeValue] = useState<string>('10'); // For split-by-size: custom size number
+  const [customSizeUnit, setCustomSizeUnit] = useState<string>('MB'); // For split-by-size: custom size unit (KB, MB, GB)
+  const [useCustomSize, setUseCustomSize] = useState<boolean>(false); // For split-by-size: whether to use custom size
+  const [minSizeBytes, setMinSizeBytes] = useState<number | null>(null); // For split-by-size: minimum size (size of largest page)
+  const [bookmarkLevel, setBookmarkLevel] = useState<number>(1); // For split-by-bookmarks: bookmark level to split at
+  const [bookmarkInfo, setBookmarkInfo] = useState<{ hasBookmarks: boolean; levels: number[]; count: number; bookmarks: Array<{ title: string; pageIndex: number; level: number }> } | null>(null); // For split-by-bookmarks: bookmark info
+  const [signatureType, setSignatureType] = useState<'draw' | 'type' | 'image'>('draw'); // For sign: signature type
+  const [signatureData, setSignatureData] = useState<string>(''); // For sign: signature data (data URL or text)
+  const [signaturePage, setSignaturePage] = useState<number>(1); // For sign: page number (1-based)
+  const [signatureX, setSignatureX] = useState<number>(0.5); // For sign: X position (0-1)
+  const [signatureY, setSignatureY] = useState<number>(0.5); // For sign: Y position (0-1)
+  const [typedSignature, setTypedSignature] = useState<string>(''); // For sign: typed signature text
+  const [signatureFontSize, setSignatureFontSize] = useState<number>(24); // For sign: font size for typed signature
+  const [signatureWidthPts, setSignatureWidthPts] = useState<number>(200); // For sign: width in PDF points
+  const [signatureHeightPts, setSignatureHeightPts] = useState<number>(80); // For sign: height in PDF points
+  const [isSignaturePadOpen, setIsSignaturePadOpen] = useState<boolean>(false);
+  const [isPositionSelectorOpen, setIsPositionSelectorOpen] = useState<boolean>(false);
+  const [isRedactSelectorOpen, setIsRedactSelectorOpen] = useState<boolean>(false);
+  const [redactions, setRedactions] = useState<RedactionArea[]>([]);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [certificatePassword, setCertificatePassword] = useState<string>('');
+  const [certificateReason, setCertificateReason] = useState<string>('');
+  const [certificateLocation, setCertificateLocation] = useState<string>('');
+  const [imageFormat, setImageFormat] = useState<ImageFormat>('PNG'); // For pdf-to-images: image format
+  const [imageQuality, setImageQuality] = useState<number>(0.92); // For pdf-to-images: image quality (0-1)
+  const [imageScale, setImageScale] = useState<number>(2); // For pdf-to-images: scale factor
+  const [imageResults, setImageResults] = useState<ImageResult[] | null>(null); // For pdf-to-images: converted images
+  const [extractedImages, setExtractedImages] = useState<Array<{ dataUrl: string; pageNumber: number; index: number; format: string }> | null>(null); // For extract-images: extracted images
+  const [extractImageFormat, setExtractImageFormat] = useState<'PNG' | 'JPEG'>('PNG'); // For extract-images: output format
+  const [compressionLevel, setCompressionLevel] = useState<'low' | 'medium' | 'high'>('medium'); // For compress: compression level
+  const [optimizeImageQuality, setOptimizeImageQuality] = useState(75); // 10–100 for optimize-images JPEG quality
+  const [optimizeTargetProfile, setOptimizeTargetProfile] = useState<'screen' | 'ebook' | 'print'>('ebook');
+  const [qrContent, setQrContent] = useState('https://');
+  const [qrSizeMm, setQrSizeMm] = useState(30);
+  const [qrPosition, setQrPosition] = useState({ x: 0.88, y: 0.9 });
+  const [qrPageRange, setQrPageRange] = useState('');
+  const [qrPreviewPage, setQrPreviewPage] = useState(1);
+  const [barcodeData, setBarcodeData] = useState('1234567890128');
+  const [barcodeFormat, setBarcodeFormat] = useState<BarcodeFormat>('CODE128');
+  const [barcodePosition, setBarcodePosition] = useState({ x: 0.5, y: 0.92 });
+  const [barcodeWidthMm, setBarcodeWidthMm] = useState(55);
+  const [barcodeHeightMm, setBarcodeHeightMm] = useState(18);
+  const [barcodePageRange, setBarcodePageRange] = useState('');
+  const [barcodePreviewPage, setBarcodePreviewPage] = useState(1);
+  const [bookmarkRows, setBookmarkRows] = useState<Array<{ id: string; title: string; pageNumber: number }>>([
+    { id: 'bm-1', title: 'Chapter 1', pageNumber: 1 },
+  ]);
+  const [hyperlinkRows, setHyperlinkRows] = useState<
+    Array<{ id: string; url: string; label: string; pageNumber: number; rect: { x: number; y: number; w: number; h: number } }>
+  >([
+    {
+      id: 'hl-1',
+      url: 'https://example.com',
+      label: 'Example',
+      pageNumber: 1,
+      rect: { x: 0.08, y: 0.88, w: 0.42, h: 0.07 },
+    },
+  ]);
+  const [hyperlinkPreviewPage, setHyperlinkPreviewPage] = useState(1);
+  const [selectedHyperlinkId, setSelectedHyperlinkId] = useState('hl-1');
+  const [pageNumberPosition, setPageNumberPosition] = useState<'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right'>('bottom-center'); // For page-numbers: position
+  const [pageNumberStart, setPageNumberStart] = useState<number>(1); // For page-numbers: starting number
+  // Load watermarks from localStorage on mount or when tool changes
+  const [watermarks, setWatermarks] = useState<WatermarkConfig[]>([]);
+  
+  // Load watermarks from localStorage when tool becomes 'add-watermark'
+  useEffect(() => {
+    if (tool.id === 'add-watermark' && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('pdfeditor_watermarks');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // imageDataUrl is already saved, imageFile will be null (we'll use imageDataUrl)
+          setWatermarks(parsed);
+        }
+      } catch (e) {
+        console.error('Error loading watermarks from localStorage:', e);
+        setWatermarks([]);
+      }
+    } else {
+      // Clear watermarks when switching to a different tool
+      setWatermarks([]);
+    }
+  }, [tool.id]);
+  
+  // Save watermarks to localStorage whenever they change (only for add-watermark tool)
+  useEffect(() => {
+    if (tool.id === 'add-watermark' && typeof window !== 'undefined') {
+      try {
+        // Remove imageFile before saving (we keep imageDataUrl instead)
+        const watermarksToSave = watermarks.map(w => {
+          const { imageFile, ...rest } = w;
+          return rest;
+        });
+        localStorage.setItem('pdfeditor_watermarks', JSON.stringify(watermarksToSave));
+      } catch (e) {
+        console.error('Error saving watermarks to localStorage:', e);
+      }
+    }
+  }, [watermarks, tool.id]);
+
+  useEffect(() => {
+    if (tool.id !== 'add-bookmarks' || !totalPages) return;
+    setBookmarkRows((rows) =>
+      rows.map((r) => ({
+        ...r,
+        pageNumber: Math.min(Math.max(1, r.pageNumber), totalPages),
+      })),
+    );
+  }, [tool.id, totalPages]);
+
+  useEffect(() => {
+    if (tool.id !== 'add-hyperlinks' || !totalPages) return;
+    setHyperlinkRows((rows) =>
+      rows.map((r) => ({
+        ...r,
+        pageNumber: Math.min(Math.max(1, r.pageNumber), totalPages),
+        rect: clampHyperlinkRect(r.rect),
+      })),
+    );
+    setHyperlinkPreviewPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [tool.id, totalPages]);
+
+  function clampHyperlinkRect(rect: { x: number; y: number; w: number; h: number }) {
+    const w = Math.max(0.02, Math.min(1, rect.w));
+    const h = Math.max(0.02, Math.min(1, rect.h));
+    const x = Math.max(0, Math.min(1 - w, rect.x));
+    const y = Math.max(0, Math.min(1 - h, rect.y));
+    return { x, y, w, h };
+  }
+
+  const [isWatermarkPreviewOpen, setIsWatermarkPreviewOpen] = useState(false); // For add-watermark: preview modal
+  const [editingWatermarkId, setEditingWatermarkId] = useState<string | null>(null); // For add-watermark: currently editing watermark
+  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { setOriginalFile, setPages, setSelectedPageId, pages: storePages, originalFile: storeOriginalFile } = usePdfStore();
+
+  const config = toolConfigs[tool.id] || toolConfigs.merge;
+
+  const handleFiles = useCallback(async (newFiles: FileList | null) => {
+    if (!newFiles) return;
+
+    const validFiles = Array.from(newFiles);
+    if (validFiles.length === 0) return;
+
+    if (config.acceptMultiple) {
+      setFiles(prev => [...prev, ...validFiles]);
+      console.log(1)
+    } else {
+      setFiles([validFiles[0]]);
+      
+      // Load total pages for tools that need it
+      if ((tool.id === 'split' || tool.id === 'extract-pages' || tool.id === 'delete-pages') 
+          && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+        } catch (err) {
+          console.error('Error loading PDF:', err);
+        }
+      }
+      
+      // Load total pages for reorder tool
+      if (tool.id === 'reorder' && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+          // Initialize order as 1, 2, 3, ...
+          setPageOrder(Array.from({ length: total }, (_, i) => i));
+        } catch (err) {
+          console.error('Error loading PDF:', err);
+        }
+      }
+      
+      // Load total pages for pdf-to-images and pdf-to-word tools
+      if ((tool.id === 'pdf-to-images' || tool.id === 'pdf-to-word') && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+        } catch (err) {
+          console.error('Error loading PDF:', err);
+        }
+      }
+      
+      // Load total pages for rotate tool
+      if (tool.id === 'rotate' && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+        } catch (err) {
+          console.error('Error loading PDF:', err);
+        }
+      }
+      
+      // Load total pages for insert-blank tool
+      if (tool.id === 'insert-blank' && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+          // Set default after page number to last page
+          setAfterPageNumber(total);
+        } catch (err) {
+          console.error('Error loading PDF:', err);
+        }
+      }
+      
+      // Load total pages for duplicate-pages tool
+      if (tool.id === 'duplicate-pages' && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+        } catch (err) {
+          console.error('Error loading PDF:', err);
+        }
+      }
+      
+      // Load bookmark info for split-by-bookmarks tool
+      if (tool.id === 'split-by-bookmarks' && validFiles[0].type === 'application/pdf') {
+        setBookmarkInfo(null); // Reset first to show loading
+        (async () => {
+          try {
+            const info = await getBookmarkInfo(validFiles[0]);
+            setBookmarkInfo(info);
+            if (info.hasBookmarks && info.levels.length > 0) {
+              // Set default level to first available level
+              setBookmarkLevel(info.levels[0]);
+            }
+          } catch (err) {
+            console.error('Error loading bookmark info:', err);
+            setBookmarkInfo({ hasBookmarks: false, levels: [], count: 0, bookmarks: [] });
+          }
+        })();
+      }
+
+      if (tool.id === 'add-bookmarks' && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+          setBookmarkRows([{ id: 'bm-1', title: 'Chapter 1', pageNumber: 1 }]);
+        } catch (err) {
+          console.error('Error loading PDF for bookmarks:', err);
+        }
+      }
+
+      if (tool.id === 'add-hyperlinks' && validFiles[0].type === 'application/pdf') {
+        try {
+          const { PDFDocument } = await import('pdf-lib');
+          const arrayBuffer = await validFiles[0].arrayBuffer();
+          const pdf = await PDFDocument.load(arrayBuffer);
+          const total = pdf.getPageCount();
+          setTotalPages(total);
+          setHyperlinkRows([
+            {
+              id: 'hl-1',
+              url: 'https://example.com',
+              label: 'Example',
+              pageNumber: 1,
+              rect: { x: 0.08, y: 0.88, w: 0.42, h: 0.07 },
+            },
+          ]);
+          setHyperlinkPreviewPage(1);
+          setSelectedHyperlinkId('hl-1');
+        } catch (err) {
+          console.error('Error loading PDF for hyperlinks:', err);
+        }
+      }
+    }
+  }, [config.acceptMultiple, tool.id]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  }, [handleFiles]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleRemoveFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+    if ((tool.id === 'split' || tool.id === 'extract-pages' || tool.id === 'delete-pages' || tool.id === 'reorder' || tool.id === 'rotate' || tool.id === 'insert-blank' || tool.id === 'duplicate-pages' || tool.id === 'split-by-size' || tool.id === 'add-bookmarks' || tool.id === 'add-hyperlinks') && index === 0) {
+      setTotalPages(null);
+      setPageRangeWarning(null);
+      setPageRange('');
+      setPageOrder([]);
+      setPageRotations({});
+      setInsertPosition('end');
+      setNumberOfBlankPages(1);
+      setAfterPageNumber(1);
+      setDuplicatePageRange('');
+      setNumberOfCopies(1);
+      setMaxFileSize('10 MB');
+      setCustomSizeValue('10');
+      setCustomSizeUnit('MB');
+      setUseCustomSize(false);
+      setMinSizeBytes(null);
+      if (tool.id === 'add-bookmarks') {
+        setBookmarkRows([{ id: 'bm-1', title: 'Chapter 1', pageNumber: 1 }]);
+      }
+      if (tool.id === 'add-hyperlinks') {
+        setHyperlinkRows([
+          {
+            id: 'hl-1',
+            url: 'https://example.com',
+            label: 'Example',
+            pageNumber: 1,
+            rect: { x: 0.08, y: 0.88, w: 0.42, h: 0.07 },
+          },
+        ]);
+        setHyperlinkPreviewPage(1);
+        setSelectedHyperlinkId('hl-1');
+      }
+    setBookmarkLevel(1);
+    setBookmarkInfo(null);
+    setSignatureType('draw');
+    setSignatureData('');
+    setSignaturePage(1);
+    setSignatureX(0.5);
+    setSignatureY(0.5);
+    setTypedSignature('');
+    setSignatureFontSize(24);
+    setIsSignaturePadOpen(false);
+    }
+  };
+
+  // Validate page range in real-time for split tool (with debounce)
+  const validatePageRange = useCallback(async (range: string) => {
+    if (tool.id !== 'split' || !range.trim() || files.length === 0) {
+      setPageRangeWarning(null);
+      return;
+    }
+
+    try {
+      // Load PDF to get total pages (only once)
+      if (!totalPages) {
+        const { PDFDocument } = await import('pdf-lib');
+        const file = files[0];
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await PDFDocument.load(arrayBuffer);
+        const total = pdf.getPageCount();
+        setTotalPages(total);
+      }
+
+      if (!totalPages) return;
+
+      // Parse and validate
+      const rangeParts = range.split(',').map(p => p.trim()).filter(p => p.length > 0);
+      const allSelectedPages = new Set<number>();
+
+      for (const part of rangeParts) {
+        try {
+          const pageIndices = parsePageRange(part, totalPages);
+          pageIndices.forEach(idx => allSelectedPages.add(idx));
+        } catch (err) {
+          // Ignore parsing errors during typing
+        }
+      }
+
+      // Check if all pages are selected
+      if (allSelectedPages.size === totalPages) {
+        setPageRangeWarning(`⚠️ You selected all ${totalPages} pages. Split requires selecting only some pages to create separate files. Please specify fewer pages.`);
+      } else if (allSelectedPages.size > totalPages * 0.9) {
+        setPageRangeWarning(`⚠️ You selected ${allSelectedPages.size} out of ${totalPages} pages. Consider selecting fewer pages for a meaningful split.`);
+      } else {
+        setPageRangeWarning(null);
+      }
+    } catch (err) {
+      // Ignore parsing errors during typing
+      setPageRangeWarning(null);
+    }
+  }, [tool.id, files, totalPages]);
+
+  const handlePageRangeChange = (value: string) => {
+    setPageRange(value);
+    if (tool.id === 'split') {
+      // Clear previous timeout
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
+      // Debounce validation
+      validationTimeoutRef.current = setTimeout(() => {
+        validatePageRange(value);
+      }, 500);
+    }
+  };
+
+  const handleProcess = async () => {
+    if (tool.id === 'merge') {
+      // Real merge PDF implementation
+      if (files.length < 2) {
+        setError('Please add at least 2 PDF files to merge');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const mergedBytes = await mergePdf(files);
+        console.log('Merge successful, bytes:', mergedBytes.length);
+        setMergedPdfBytes(mergedBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error merging PDFs:', err);
+        setError(err instanceof Error ? err.message : 'Failed to merge PDF files. Please try again.');
+        setIsComplete(false);
+        setMergedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'split') {
+      // Real split PDF implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to split');
+        return;
+      }
+
+      if (!pageRange.trim()) {
+        setError('Please enter page ranges (e.g., "1-3, 5, 8-10")');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        
+        // Load PDF to get total pages
+        const { PDFDocument } = await import('pdf-lib');
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await PDFDocument.load(arrayBuffer);
+        const totalPages = pdf.getPageCount();
+
+        // Parse page ranges - split by commas to get separate ranges
+        const rangeParts = pageRange.split(',').map(p => p.trim()).filter(p => p.length > 0);
+        const ranges: number[][] = [];
+        const allSelectedPages = new Set<number>();
+
+        for (const part of rangeParts) {
+          const pageIndices = parsePageRange(part, totalPages);
+          if (pageIndices.length > 0) {
+            ranges.push(pageIndices);
+            pageIndices.forEach(idx => allSelectedPages.add(idx));
+          }
+        }
+        
+        if (ranges.length === 0) {
+          throw new Error('No valid pages found in the specified range');
+        }
+
+        // Validation: Check if user selected all pages (which would just be the same file)
+        if (allSelectedPages.size === totalPages && ranges.length === 1) {
+          throw new Error(`You selected all ${totalPages} pages. To split a PDF, you need to select only some pages, not all of them. For example, use "1-5" to split pages 1-5 into one file, and the rest will remain.`);
+        }
+
+        // Validation: Check if only one range that covers all pages
+        if (ranges.length === 1 && ranges[0].length === totalPages) {
+          throw new Error(`You selected all ${totalPages} pages in one range. To split a PDF, specify multiple ranges separated by commas. For example: "1-3, 5-7" will create 2 separate files.`);
+        }
+
+        // Split PDF
+        const splitResults = await splitPdf(file, ranges);
+
+        // Generate filenames
+        const baseName = file.name.replace(/\.pdf$/i, '');
+        const results = splitResults.map((bytes, index) => {
+          const range = ranges[index];
+          const startPage = range[0] + 1;
+          const endPage = range[range.length - 1] + 1;
+          const filename = range.length === 1
+            ? `${baseName}_page_${startPage}.pdf`
+            : `${baseName}_pages_${startPage}-${endPage}.pdf`;
+          
+          return { bytes, filename };
+        });
+
+        console.log(`Split successful: ${results.length} files created`);
+        results.forEach((r, i) => {
+          console.log(`  File ${i + 1}: ${r.filename} (${r.bytes.length} bytes)`);
+        });
+        
+        setSplitPdfResults(results);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error splitting PDF:', err);
+        setError(err instanceof Error ? err.message : 'Failed to split PDF. Please check your page ranges and try again.');
+        setIsComplete(false);
+        setSplitPdfResults(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'delete-pages') {
+      // Real delete pages implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to delete pages from');
+        return;
+      }
+
+      if (!pageRange.trim()) {
+        setError('Please select pages to delete');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await deletePages(file, pageRange);
+        
+        console.log('Delete pages successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error deleting pages:', err);
+        setError(err instanceof Error ? err.message : 'Failed to delete pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'extract-pages') {
+      // Real extract pages implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to extract pages from');
+        return;
+      }
+
+      if (!pageRange.trim()) {
+        setError('Please select pages to extract');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await extractPages(file, pageRange);
+        
+        console.log('Extract pages successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error extracting pages:', err);
+        setError(err instanceof Error ? err.message : 'Failed to extract pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'reorder') {
+      // Real reorder pages implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to reorder');
+        return;
+      }
+
+      if (!totalPages || pageOrder.length === 0) {
+        setError('PDF pages are not loaded. Please try uploading again.');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const { PDFDocument } = await import('pdf-lib');
+        const arrayBuffer = await file.arrayBuffer();
+        const sourcePdf = await PDFDocument.load(arrayBuffer);
+        
+        // Create new PDF with reordered pages
+        const newPdf = await PDFDocument.create();
+        
+        // Copy pages in new order
+        for (const originalIndex of pageOrder) {
+          const [copiedPage] = await newPdf.copyPages(sourcePdf, [originalIndex]);
+          newPdf.addPage(copiedPage);
+        }
+        
+        const pdfBytes = await newPdf.save();
+        
+        console.log('Reorder pages successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error reordering pages:', err);
+        setError(err instanceof Error ? err.message : 'Failed to reorder pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'rotate') {
+      // Real rotate pages implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to rotate pages');
+        return;
+      }
+
+      if (Object.keys(pageRotations).length === 0) {
+        setError('Please select at least one page and set rotation angle');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await rotatePages(file, pageRotations);
+        
+        console.log('Rotate pages successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error rotating pages:', err);
+        setError(err instanceof Error ? err.message : 'Failed to rotate pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'duplicate-pages') {
+      // Real duplicate pages implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to duplicate pages');
+        return;
+      }
+
+      if (!duplicatePageRange.trim()) {
+        setError('Please specify which pages to duplicate');
+        return;
+      }
+
+      if (numberOfCopies < 1 || numberOfCopies > 10) {
+        setError('Number of copies must be between 1 and 10');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await duplicatePages(file, duplicatePageRange, numberOfCopies);
+        
+        console.log('Duplicate pages successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error duplicating pages:', err);
+        setError(err instanceof Error ? err.message : 'Failed to duplicate pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'insert-blank') {
+      // Real insert blank pages implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to insert blank pages');
+        return;
+      }
+
+      if (numberOfBlankPages < 1 || numberOfBlankPages > 100) {
+        setError('Number of blank pages must be between 1 and 100');
+        return;
+      }
+
+      if (insertPosition === 'after' && (!totalPages || afterPageNumber < 1 || afterPageNumber > totalPages)) {
+        setError(`Page number must be between 1 and ${totalPages || 'N/A'}`);
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await insertBlankPages(
+          file,
+          insertPosition,
+          numberOfBlankPages,
+          insertPosition === 'after' ? afterPageNumber : undefined
+        );
+        
+        console.log('Insert blank pages successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error inserting blank pages:', err);
+        setError(err instanceof Error ? err.message : 'Failed to insert blank pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'split-by-size') {
+      // Real split by size implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to split by size');
+        return;
+      }
+
+      // Determine which size to use (custom or preset)
+      const sizeToUse = useCustomSize 
+        ? `${customSizeValue} ${customSizeUnit}`
+        : maxFileSize;
+      
+      if (useCustomSize) {
+        // Validate custom size
+        const sizeNum = parseFloat(customSizeValue);
+        if (isNaN(sizeNum) || sizeNum <= 0) {
+          setError('Please enter a valid size number');
+          return;
+        }
+        
+        try {
+          const customSizeBytes = parseSizeToBytes(sizeToUse);
+          
+          if (minSizeBytes && customSizeBytes < minSizeBytes) {
+            const minSizeStr = formatBytes(minSizeBytes);
+            setError(`Size must be at least ${minSizeStr} (size of largest page). Please enter a larger value.`);
+            return;
+          }
+        } catch (err) {
+          setError('Invalid size. Please check your input.');
+          return;
+        }
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const splitResults = await splitBySizeString(file, sizeToUse);
+        
+        // Generate filenames
+        const baseName = file.name.replace(/\.pdf$/i, '');
+        const results = splitResults.map((bytes, index) => {
+          const filename = `${baseName}_part_${index + 1}_of_${splitResults.length}.pdf`;
+          return { bytes, filename };
+        });
+
+        console.log(`Split by size successful: ${results.length} files created`);
+        results.forEach((r, i) => {
+          console.log(`  File ${i + 1}: ${r.filename} (${formatBytes(r.bytes.length)})`);
+        });
+        
+        setSplitPdfResults(results);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error splitting PDF by size:', err);
+        setError(err instanceof Error ? err.message : 'Failed to split PDF by size. Please try again.');
+        setIsComplete(false);
+        setSplitPdfResults(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'sign') {
+      // Real sign PDF implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to sign');
+        return;
+      }
+
+      if (signatureType === 'type' && !typedSignature.trim()) {
+        setError('Please enter your signature text');
+        return;
+      } else if (signatureType !== 'type' && (!signatureData || signatureData.trim().length === 0)) {
+        setError('Please create or upload a signature');
+        return;
+      }
+
+      if (!signaturePage || signaturePage < 1) {
+        setError('Please select a page for the signature by clicking "Select Position on PDF"');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const signatureToUse = signatureType === 'type' ? typedSignature : signatureData;
+        
+        const pdfBytes = await signPdf(file, {
+          signatureType: signatureType,
+          signatureData: signatureToUse,
+          pageNumber: signaturePage,
+          x: signatureX,
+          y: signatureY,
+          width: signatureWidthPts,
+          height: signatureHeightPts,
+          fontSize: signatureType === 'type' ? signatureFontSize : undefined,
+        });
+        
+        console.log('Signing successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error signing PDF:', err);
+        setError(err instanceof Error ? err.message : 'Failed to sign PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'reverse-order') {
+      // Real reverse page order implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to reverse page order');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await reversePageOrder(file);
+        
+        console.log('Reverse page order successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error reversing page order:', err);
+        setError(err instanceof Error ? err.message : 'Failed to reverse page order. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'remove-hidden-data') {
+      // Real sanitize PDF implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to sanitize');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await sanitizePdf(file, {
+          removeMetadata: true,
+          removeJavaScript: true,
+          removeEmbeddedFiles: true,
+          removeAnnotations: true,
+          removeFormData: true,
+          removeHiddenLayers: true,
+          removeLinks: true,
+        });
+        
+        console.log('Sanitization successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error sanitizing PDF:', err);
+        setError(err instanceof Error ? err.message : 'Failed to sanitize PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'redact') {
+      // Real redact PDF implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to redact');
+        return;
+      }
+
+      if (redactions.length === 0) {
+        setError(tr('tools.view.redact.validation.selectAreas', 'Please select areas to redact by clicking "Select Areas to Redact"'));
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await redactPdf({
+          file,
+          redactions,
+        });
+        
+        console.log('Redaction successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error redacting PDF:', err);
+        setError(err instanceof Error ? err.message : 'Failed to redact PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'split-by-bookmarks') {
+      // Real split by bookmarks implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to split by bookmarks');
+        return;
+      }
+
+      if (!bookmarkInfo || !bookmarkInfo.hasBookmarks) {
+        setError('No bookmarks found in PDF. Please ensure your PDF has bookmarks/outline structure.');
+        return;
+      }
+
+      if (!bookmarkInfo.levels.includes(bookmarkLevel)) {
+        setError(`No bookmarks found at level ${bookmarkLevel}. Available levels: ${bookmarkInfo.levels.join(', ')}`);
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const result = await splitByBookmarksSimple(file, bookmarkLevel);
+        
+        // Generate filenames based on bookmark titles
+        const baseName = file.name.replace(/\.pdf$/i, '');
+        const results = result.map((bytes, index) => {
+          // Use sanitized bookmark title or default name
+          const sanitizedTitle = bookmarkInfo.bookmarks?.[index]?.title
+            ?.replace(/[^a-zA-Z0-9\s-_]/g, '')
+            .trim()
+            .substring(0, 50) || `bookmark_${index + 1}`;
+          const filename = `${baseName}_${sanitizedTitle}.pdf`;
+          return { bytes, filename };
+        });
+
+        console.log(`Split by bookmarks successful: ${results.length} files created`);
+        results.forEach((r, i) => {
+          console.log(`  File ${i + 1}: ${r.filename} (${formatBytes(r.bytes.length)})`);
+        });
+        
+        setSplitPdfResults(results);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error splitting PDF by bookmarks:', err);
+        setError(err instanceof Error ? err.message : 'Failed to split PDF by bookmarks. Please try again.');
+        setIsComplete(false);
+        setSplitPdfResults(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'certificate') {
+      // Real certificate signing implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to sign');
+        return;
+      }
+
+      if (!certificateFile) {
+        setError('Please upload a certificate file (.pfx or .p12)');
+        return;
+      }
+
+      if (!certificatePassword) {
+        setError('Please enter the certificate password');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const pdfBytes = await certificateSignPdf(file, {
+          certificateFile,
+          certificatePassword,
+          reason: certificateReason || undefined,
+          location: certificateLocation || undefined,
+        });
+        
+        console.log('Certificate signing successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error signing PDF with certificate:', err);
+        setError(err instanceof Error ? err.message : 'Failed to sign PDF with certificate. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-images') {
+      // Real PDF to images implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const images = await pdfToImages(file, {
+          format: imageFormat,
+          quality: imageQuality,
+          scale: imageScale,
+          pageRange: pageRange || undefined,
+        });
+        
+        console.log(`PDF to images successful: ${images.length} image(s) created`);
+        setImageResults(images);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error converting PDF to images:', err);
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to images. Please try again.');
+        setIsComplete(false);
+        setImageResults(null);
+        setExtractedImages(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-word') {
+      // Real PDF to Word implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const docxBytes = await pdfToWord(file, {
+          pageRange: pageRange || undefined,
+          preserveFormatting: true,
+          includeImages: false,
+        });
+        
+        console.log('PDF to Word successful, bytes:', docxBytes.length);
+        setProcessedPdfBytes(docxBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error converting PDF to Word:', err);
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to Word. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-excel') {
+      // Real PDF to Excel implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const xlsxBytes = await pdfToExcel(file, {
+          pageRange: pageRange || undefined,
+          detectTables: true,
+          preserveFormatting: true,
+        });
+        
+        console.log('PDF to Excel successful, bytes:', xlsxBytes.length);
+        setProcessedPdfBytes(xlsxBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error converting PDF to Excel:', err);
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to Excel. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-text') {
+      // Real PDF to Text implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const text = await pdfToText(file, {
+          pageRange: pageRange || undefined,
+          preserveLineBreaks: true,
+          includePageNumbers: false,
+        });
+        
+        console.log('PDF to Text successful, length:', text.length);
+        setProcessedText(text);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error converting PDF to Text:', err);
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to Text. Please try again.');
+        setIsComplete(false);
+        setProcessedText(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-csv') {
+      // Real PDF to CSV implementation
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const file = files[0];
+        const csvFiles = await pdfToCsv(file, {
+          pageRange: pageRange || undefined,
+          detectTables: true,
+          delimiter: ',',
+          quoteChar: '"',
+          separateFiles: false, // Combine all pages into one CSV
+        });
+        
+        console.log('PDF to CSV successful, files:', csvFiles.length);
+        setProcessedCsvFiles(csvFiles);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error converting PDF to CSV:', err);
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to CSV. Please try again.');
+        setIsComplete(false);
+        setProcessedCsvFiles(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-html') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const html = await pdfToHtml(file, {
+          pageRange: pageRange || undefined,
+          includeImages: false,
+          preserveFormatting: true,
+        });
+        setProcessedText(html);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to HTML. Please try again.');
+        setIsComplete(false);
+        setProcessedText(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-markdown') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const markdown = await pdfToMarkdown(file, {
+          pageRange: pageRange || undefined,
+          preserveFormatting: true,
+          detectHeadings: true,
+        });
+        setProcessedText(markdown);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to Markdown. Please try again.');
+        setIsComplete(false);
+        setProcessedText(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-to-pptx') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file to convert');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pptxBytes = await pdfToPptx(file, {
+          pageRange: pageRange || undefined,
+          slideLayout: 'full',
+          includeText: true,
+        });
+        setProcessedPdfBytes(pptxBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert PDF to PowerPoint. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'html-to-pdf') {
+      if (files.length === 0) {
+        setError('Please upload an HTML file to convert');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await htmlToPdf(file, {
+          pageSize: 'A4',
+          orientation: 'portrait',
+          margin: { top: 20, right: 20, bottom: 20, left: 20 },
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert HTML to PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'word-to-pdf') {
+      if (files.length === 0) {
+        setError('Please upload a Word document to convert');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await wordToPdf(file, {
+          preserveFormatting: true,
+          pageSize: 'A4',
+          orientation: 'portrait',
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert Word to PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'excel-to-pdf') {
+      if (files.length === 0) {
+        setError('Please upload an Excel file to convert');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await excelToPdf(file, {
+          pageSize: 'A4',
+          orientation: 'portrait',
+          fitToPage: true,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert Excel to PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'compress') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file to compress');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await compressPdf(file, {
+          quality: compressionLevel,
+          removeMetadata: compressionLevel === 'high', // Remove metadata for high compression
+          optimizeImages: true,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to compress PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'add-watermark') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        if (watermarks.length === 0) {
+          setError('Please add at least one watermark');
+          setIsProcessing(false);
+          return;
+        }
+        const pdfBytes = await addWatermark(file, {
+          watermarks: watermarks,
+          pageRange: pageRange || undefined,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+        // Clear watermarks after successful application to avoid confusion
+        setWatermarks([]);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('pdfeditor_watermarks');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add watermark. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'page-numbers') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await addPageNumbers(file, {
+          position: pageNumberPosition,
+          format: '{page}',
+          startNumber: pageNumberStart,
+          pageRange: pageRange || undefined,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add page numbers. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'crop') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await cropPages(file, {
+          pageRange: pageRange || undefined,
+          margins: { top: 0, right: 0, bottom: 0, left: 0 }, // Should come from UI
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to crop pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'resize') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await resizePages(file, {
+          pageSize: 'A4', // Should come from UI
+          pageRange: pageRange || undefined,
+          scaleContent: true,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to resize pages. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'flatten') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await flattenPdf(file, {
+          flattenForms: true,
+          flattenAnnotations: true,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to flatten PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'metadata') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await editMetadata(file, {
+          // Metadata should come from UI state
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to edit metadata. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'extract-images') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const images = await extractImages(file, {
+          pageRange: pageRange || undefined,
+          format: extractImageFormat,
+        });
+        setExtractedImages(images);
+        setImageResults(images.map(img => ({ 
+          dataUrl: img.dataUrl, 
+          pageNumber: img.pageNumber,
+          filename: `image_${img.pageNumber}_${img.index}.${img.format.toLowerCase()}`,
+        })));
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to extract images. Please try again.');
+        setIsComplete(false);
+        setImageResults(null);
+        setExtractedImages(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'remove-images') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await removeImages(file);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to remove images. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'optimize-images') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await optimizeImages(file, {
+          quality: optimizeImageQuality / 100,
+          maxResolution: OPTIMIZE_PROFILE_MAX_RES[optimizeTargetProfile],
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to optimize images. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'add-qr-code') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const text = qrContent.trim();
+        if (!text) {
+          setError(tr('tools.qrCode.errorEmpty', 'Please enter text or a URL for the QR code'));
+          setIsProcessing(false);
+          return;
+        }
+        const pdfBytes = await addQrCode(file, {
+          content: text,
+          pageRange: qrPageRange.trim() || undefined,
+          position: qrPosition,
+          size: qrSizeMm * MM_TO_PT,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add QR code. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'add-barcode') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const text = barcodeData.trim();
+        if (!text) {
+          setError(tr('tools.barcode.errorEmpty', 'Please enter barcode data'));
+          setIsProcessing(false);
+          return;
+        }
+        const pdfBytes = await addBarcode(file, {
+          data: text,
+          type: barcodeFormat,
+          pageRange: barcodePageRange.trim() || undefined,
+          position: barcodePosition,
+          width: barcodeWidthMm * MM_TO_PT,
+          height: barcodeHeightMm * MM_TO_PT,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add barcode. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'add-bookmarks') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      if (!totalPages) {
+        setError(tr('tools.bookmarks.errorNoPages', 'Could not read the PDF page count. Please re-upload the file.'));
+        return;
+      }
+      if (bookmarkRows.length === 0) {
+        setError(tr('tools.bookmarks.errorEmpty', 'Add at least one bookmark.'));
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const bookmarks = bookmarkRows.map((r) => ({
+          title: r.title.trim() || tr('tools.bookmarks.untitled', 'Untitled'),
+          pageNumber: Math.min(Math.max(1, r.pageNumber), totalPages),
+        }));
+        const pdfBytes = await addBookmarks(file, { bookmarks, replaceExisting: true });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add bookmarks. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'add-hyperlinks') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      if (!totalPages) {
+        setError(tr('tools.hyperlinks.errorNoPages', 'Could not read the PDF page count. Please re-upload the file.'));
+        return;
+      }
+      if (hyperlinkRows.length === 0) {
+        setError(tr('tools.hyperlinks.errorEmpty', 'Add at least one link.'));
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const hyperlinks = hyperlinkRows.map((row) => {
+          const u = normalizeUrl(row.url.trim());
+          return {
+            url: u,
+            pageNumber: Math.min(Math.max(1, row.pageNumber), totalPages),
+            label: row.label.trim(),
+            rect: clampHyperlinkRect(row.rect),
+          };
+        });
+        for (const h of hyperlinks) {
+          if (!h.url) {
+            throw new Error(tr('tools.hyperlinks.errorUrl', 'Each link needs a valid URL.'));
+          }
+        }
+        const pdfBytes = await addHyperlinks(file, { hyperlinks });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add hyperlinks. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'add-attachments') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await addAttachments(file, {
+          attachments: [], // Should come from UI
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add attachments. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'stamp') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await addStamp(file, {
+          text: 'STAMP', // Should come from UI
+          pageRange: pageRange || undefined,
+          position: { x: 0.5, y: 0.5 },
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add stamp. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'bates-numbering') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await batesNumbering(file, {
+          prefix: 'DOC-', // Should come from UI
+          startNumber: 1,
+          digits: 6,
+          position: 'bottom-right',
+          pageRange: pageRange || undefined,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to add Bates numbering. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'fill-sign') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await fillSign(file, {
+          formData: {}, // Should come from UI
+          signatureData: signatureData || undefined,
+          signaturePage: signaturePage,
+          signatureX: signatureX,
+          signatureY: signatureY,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fill and sign. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'create-form') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await createForm(file, {
+          fields: [], // Should come from UI
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create form. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'ocr') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await ocrPdf(file, {
+          language: 'eng', // Should come from UI
+          pageRange: pageRange || undefined,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to perform OCR. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'searchable-pdf') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await makeSearchable(file, {
+          language: 'eng', // Should come from UI
+          pageRange: pageRange || undefined,
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to make PDF searchable. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'compare') {
+      if (files.length < 2) {
+        setError('Please upload 2 PDF files to compare');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const result = await comparePdfs(files[0], files[1]);
+        setProcessedText(JSON.stringify(result, null, 2));
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to compare PDFs. Please try again.');
+        setIsComplete(false);
+        setProcessedText(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'repair') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await repairPdf(file);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to repair PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdf-statistics') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const stats = await getPdfStatistics(file);
+        setProcessedText(JSON.stringify(stats, null, 2));
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to get PDF statistics. Please try again.');
+        setIsComplete(false);
+        setProcessedText(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'linearize') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await linearizePdf(file);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to linearize PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'color-space') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await convertColorSpace(file, {
+          targetSpace: 'CMYK', // Should come from UI
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert color space. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'accessibility') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const report = await checkAccessibility(file);
+        setProcessedText(JSON.stringify(report, null, 2));
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to check accessibility. Please try again.');
+        setIsComplete(false);
+        setProcessedText(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdfa') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await convertToPdfa(file, {
+          level: 'B', // Should come from UI
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert to PDF/A. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'pdfx') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await convertToPdfx(file, {
+          profile: 'PDF/X-1a', // Should come from UI
+        });
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert to PDF/X. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'validate') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const result = await validatePdf(file);
+        setProcessedText(JSON.stringify(result, null, 2));
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to validate PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedText(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'grayscale') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await grayscalePdf(file);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to convert to grayscale. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'invert-colors') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await invertColors(file);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to invert colors. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'remove-annotations') {
+      if (files.length === 0) {
+        setError('Please upload a PDF file');
+        return;
+      }
+      setIsProcessing(true);
+      setError(null);
+      try {
+        const file = files[0];
+        const pdfBytes = await removeAnnotations(file);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to remove annotations. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else if (tool.id === 'images-to-pdf') {
+      // Real images to PDF implementation
+      if (files.length === 0) {
+        setError('Please upload at least one image file');
+        return;
+      }
+
+      // Validate that all files are images
+      const invalidFiles = files.filter(
+        file => !file.type.startsWith('image/') && 
+        !file.name.match(/\.(png|jpg|jpeg|webp|gif|bmp)$/i)
+      );
+      
+      if (invalidFiles.length > 0) {
+        setError(`Invalid image files: ${invalidFiles.map(f => f.name).join(', ')}`);
+        return;
+      }
+
+      setIsProcessing(true);
+      setError(null);
+
+      try {
+        const pdfBytes = await imagesToPdf(files, {
+          pageSize: 'A4',
+          orientation: 'portrait',
+          fitToPage: true,
+          margin: 0,
+        });
+        
+        console.log('Images to PDF successful, bytes:', pdfBytes.length);
+        setProcessedPdfBytes(pdfBytes);
+        setIsComplete(true);
+        setError(null);
+      } catch (err) {
+        console.error('Error converting images to PDF:', err);
+        setError(err instanceof Error ? err.message : 'Failed to convert images to PDF. Please try again.');
+        setIsComplete(false);
+        setProcessedPdfBytes(null);
+      } finally {
+        setIsProcessing(false);
+      }
+    } else {
+      // Stub for other tools
+      setIsProcessing(true);
+      setTimeout(() => {
+        setIsProcessing(false);
+        setIsComplete(true);
+      }, 2000);
+    }
+  };
+
+  const handleReset = () => {
+    setFiles([]);
+    setIsComplete(false);
+    setIsProcessing(false);
+    setMergedPdfBytes(null);
+    setSplitPdfResults(null);
+    setProcessedPdfBytes(null);
+    setProcessedText(null);
+    setProcessedCsvFiles(null);
+    setPageRange('');
+    setError(null);
+    setTotalPages(null);
+    setPageRangeWarning(null);
+    setPageOrder([]);
+    setPageRotations({});
+    setInsertPosition('end');
+    setNumberOfBlankPages(1);
+    setAfterPageNumber(1);
+    setDuplicatePageRange('');
+    setNumberOfCopies(1);
+    setMaxFileSize('10 MB');
+    setSignatureType('draw');
+    setSignatureData('');
+    setSignaturePage(1);
+    setSignatureX(0.5);
+    setSignatureY(0.5);
+    setTypedSignature('');
+    setSignatureFontSize(24);
+    setSignatureWidthPts(200);
+    setSignatureHeightPts(80);
+    setIsSignaturePadOpen(false);
+    setIsPositionSelectorOpen(false);
+    setIsRedactSelectorOpen(false);
+    setRedactions([]);
+    setCertificateFile(null);
+    setCertificatePassword('');
+    setCertificateReason('');
+    setCertificateLocation('');
+    setImageFormat('PNG');
+    setImageQuality(0.92);
+    setImageScale(2);
+    setImageResults(null);
+    setQrContent('https://');
+    setQrSizeMm(30);
+    setQrPosition({ x: 0.88, y: 0.9 });
+    setQrPageRange('');
+    setQrPreviewPage(1);
+    setBarcodeData('1234567890128');
+    setBarcodeFormat('CODE128');
+    setBarcodePosition({ x: 0.5, y: 0.92 });
+    setBarcodeWidthMm(55);
+    setBarcodeHeightMm(18);
+    setBarcodePageRange('');
+    setBarcodePreviewPage(1);
+    setBookmarkRows([{ id: 'bm-1', title: 'Chapter 1', pageNumber: 1 }]);
+    setHyperlinkRows([
+      {
+        id: 'hl-1',
+        url: 'https://example.com',
+        label: 'Example',
+        pageNumber: 1,
+        rect: { x: 0.08, y: 0.88, w: 0.42, h: 0.07 },
+      },
+    ]);
+    setHyperlinkPreviewPage(1);
+    setSelectedHyperlinkId('hl-1');
+  };
+
+  const handleDownload = async () => {
+    if (tool.id === 'merge') {
+      if (!mergedPdfBytes) {
+        console.error('Merged PDF bytes not available');
+        setError('Merged PDF is not ready. Please try merging again.');
+        return;
+      }
+      
+      // Generate filename from input files
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'merged';
+      const filename = files.length > 1 
+        ? `${baseName}_merged.pdf`
+        : `${baseName}.pdf`;
+      
+      try {
+        downloadMergedPdf(mergedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'split' || tool.id === 'split-by-size' || tool.id === 'split-by-bookmarks') {
+      if (!splitPdfResults || splitPdfResults.length === 0) {
+        console.error('Split PDF results not available');
+        setError('Split PDFs are not ready. Please try splitting again.');
+        return;
+      }
+      
+      try {
+        if (tool.id === 'split') {
+          await downloadSplitPdfs(splitPdfResults);
+        } else if (tool.id === 'split-by-size') {
+          await downloadSplitBySizePdfs(splitPdfResults);
+        } else {
+          await downloadSplitByBookmarksPdfs(splitPdfResults);
+        }
+      } catch (err) {
+        console.error('Error downloading split PDFs:', err);
+        setError('Failed to download PDFs. Please try again.');
+      }
+    } else if (tool.id === 'delete-pages' || tool.id === 'extract-pages') {
+      if (!processedPdfBytes) {
+        console.error('Processed PDF bytes not available');
+        setError(`${tool.id === 'delete-pages' ? 'Updated' : 'Extracted'} PDF is not ready. Please try again.`);
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : tool.id === 'delete-pages' ? 'updated' : 'extracted';
+      const filename = tool.id === 'delete-pages'
+        ? `${baseName}_updated.pdf`
+        : `${baseName}_extracted.pdf`;
+      
+      try {
+        if (tool.id === 'delete-pages') {
+          downloadDeletePdf(processedPdfBytes, filename);
+        } else {
+          downloadExtractPdf(processedPdfBytes, filename);
+        }
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'reorder') {
+      if (!processedPdfBytes) {
+        console.error('Reordered PDF bytes not available');
+        setError('Reordered PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'reordered';
+      const filename = `${baseName}_reordered.pdf`;
+      
+      try {
+        downloadDeletePdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'rotate') {
+      if (!processedPdfBytes) {
+        console.error('Rotated PDF bytes not available');
+        setError('Rotated PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'rotated';
+      const filename = `${baseName}_rotated.pdf`;
+      
+      try {
+        downloadRotatePdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'insert-blank') {
+      if (!processedPdfBytes) {
+        console.error('Updated PDF bytes not available');
+        setError('Updated PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'updated';
+      const filename = `${baseName}_updated.pdf`;
+      
+      try {
+        downloadInsertBlankPdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'duplicate-pages') {
+      if (!processedPdfBytes) {
+        console.error('Updated PDF bytes not available');
+        setError('Updated PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'updated';
+      const filename = `${baseName}_updated.pdf`;
+      
+      try {
+        downloadDuplicatePdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'sign') {
+      if (!processedPdfBytes) {
+        console.error('Signed PDF bytes not available');
+        setError('Signed PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'signed';
+      const filename = `${baseName}_signed.pdf`;
+      
+      try {
+        downloadSignedPdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading signed PDF:', err);
+        setError('Failed to download signed PDF. Please try again.');
+      }
+    } else if (tool.id === 'reverse-order') {
+      if (!processedPdfBytes) {
+        console.error('Reversed PDF bytes not available');
+        setError('Reversed PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'reversed';
+      const filename = `${baseName}_reversed.pdf`;
+      
+      try {
+        downloadReversePdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'redact') {
+      if (!processedPdfBytes) {
+        console.error('Redacted PDF bytes not available');
+        setError('Redacted PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'redacted';
+      const filename = `${baseName}_redacted.pdf`;
+      
+      try {
+        downloadRedactedPdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'remove-hidden-data') {
+      if (!processedPdfBytes) {
+        console.error('Sanitized PDF bytes not available');
+        setError('Sanitized PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'sanitized';
+      const filename = `${baseName}_sanitized.pdf`;
+      
+      try {
+        downloadSanitizedPdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'certificate') {
+      if (!processedPdfBytes) {
+        console.error('Certificate-signed PDF bytes not available');
+        setError('Certificate-signed PDF is not ready. Please try again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '') 
+        : 'certificate-signed';
+      const filename = `${baseName}_certificate-signed.pdf`;
+      
+      try {
+        downloadCertificateSignedPdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'pdf-to-images') {
+      if (!imageResults || imageResults.length === 0) {
+        console.error('Image results not available');
+        setError('Images are not ready. Please try converting again.');
+        return;
+      }
+      
+      try {
+        // Download as ZIP if multiple images, otherwise download single image
+        if (imageResults.length > 1) {
+          await downloadImagesAsZip(imageResults);
+        } else {
+          // Single image download
+          const link = document.createElement('a');
+          link.href = imageResults[0].dataUrl;
+          link.download = imageResults[0].filename;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      } catch (err) {
+        console.error('Error downloading images:', err);
+        setError('Failed to download images. Please try again.');
+      }
+    } else if (tool.id === 'images-to-pdf') {
+      if (!processedPdfBytes) {
+        console.error('PDF bytes not available');
+        setError('PDF is not ready. Please try converting again.');
+        return;
+      }
+      
+      // Generate filename from input files
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.(png|jpg|jpeg|webp|gif|bmp)$/i, '')
+        : 'combined';
+      const filename = files.length === 1
+        ? `${baseName}.pdf`
+        : `${baseName}_combined.pdf`;
+      
+      try {
+        downloadImagesPdf(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading PDF:', err);
+        setError('Failed to download PDF. Please try again.');
+      }
+    } else if (tool.id === 'pdf-to-word') {
+      if (!processedPdfBytes) {
+        console.error('Word document bytes not available');
+        setError('Word document is not ready. Please try converting again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '')
+        : 'converted';
+      const filename = `${baseName}.docx`;
+      
+      try {
+        downloadWord(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading Word document:', err);
+        setError('Failed to download Word document. Please try again.');
+      }
+    } else if (tool.id === 'pdf-to-excel') {
+      if (!processedPdfBytes) {
+        console.error('Excel file bytes not available');
+        setError('Excel file is not ready. Please try converting again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '')
+        : 'converted';
+      const filename = `${baseName}.xlsx`;
+      
+      try {
+        downloadExcel(processedPdfBytes, filename);
+      } catch (err) {
+        console.error('Error downloading Excel file:', err);
+        setError('Failed to download Excel file. Please try again.');
+      }
+    } else if (tool.id === 'pdf-to-text') {
+      if (!processedText) {
+        console.error('Text content not available');
+        setError('Text content is not ready. Please try converting again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '')
+        : 'extracted';
+      const filename = `${baseName}.txt`;
+      
+      try {
+        downloadText(processedText, filename);
+      } catch (err) {
+        console.error('Error downloading text file:', err);
+        setError('Failed to download text file. Please try again.');
+      }
+    } else if (tool.id === 'pdf-to-csv') {
+      if (!processedCsvFiles || processedCsvFiles.length === 0) {
+        console.error('CSV files not available');
+        setError('CSV files are not ready. Please try converting again.');
+        return;
+      }
+      
+      // Generate filename from input file
+      const baseName = files.length > 0 
+        ? files[0].name.replace(/\.pdf$/i, '')
+        : 'extracted';
+      
+      try {
+        if (processedCsvFiles.length === 1) {
+          // Single CSV file
+          const filename = processedCsvFiles[0].filename || `${baseName}.csv`;
+          downloadCsv(processedCsvFiles[0].bytes, filename);
+        } else {
+          // Multiple CSV files - download as ZIP
+          await downloadCsvFiles(processedCsvFiles, `${baseName}.zip`);
+        }
+      } catch (err) {
+        console.error('Error downloading CSV file(s):', err);
+        setError('Failed to download CSV file(s). Please try again.');
+      }
+    } else if (tool.id === 'pdf-to-html') {
+      if (!processedText) {
+        setError('HTML content is not ready. Please try converting again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.pdf$/i, '') : 'converted';
+      downloadHtml(processedText, `${baseName}.html`);
+    } else if (tool.id === 'pdf-to-markdown') {
+      if (!processedText) {
+        setError('Markdown content is not ready. Please try converting again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.pdf$/i, '') : 'converted';
+      downloadMarkdown(processedText, `${baseName}.md`);
+    } else if (tool.id === 'pdf-to-pptx') {
+      if (!processedPdfBytes) {
+        setError('PowerPoint file is not ready. Please try converting again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.pdf$/i, '') : 'converted';
+      downloadPptx(processedPdfBytes, `${baseName}.pptx`);
+    } else if (tool.id === 'html-to-pdf' || tool.id === 'word-to-pdf' || tool.id === 'excel-to-pdf') {
+      if (!processedPdfBytes) {
+        setError('PDF file is not ready. Please try converting again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.(html|htm|docx?|xlsx?)$/i, '') : 'converted';
+      if (tool.id === 'html-to-pdf') {
+        downloadHtmlPdf(processedPdfBytes, `${baseName}.pdf`);
+      } else if (tool.id === 'word-to-pdf') {
+        downloadWordPdf(processedPdfBytes, `${baseName}.pdf`);
+      } else {
+        downloadExcelPdf(processedPdfBytes, `${baseName}.pdf`);
+      }
+    } else if (tool.id === 'compress' || tool.id === 'add-watermark' || tool.id === 'page-numbers' || 
+               tool.id === 'crop' || 
+               tool.id === 'resize' || tool.id === 'flatten' || tool.id === 'metadata') {
+      if (!processedPdfBytes) {
+        setError('PDF file is not ready. Please try processing again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.pdf$/i, '') : 'processed';
+      const suffix = tool.id === 'compress' ? '_compressed' :
+                     tool.id === 'add-watermark' ? '_watermarked' :
+                     tool.id === 'page-numbers' ? '_numbered' :
+                     tool.id === 'crop' ? '_cropped' :
+                     tool.id === 'resize' ? '_resized' :
+                     tool.id === 'flatten' ? '_flattened' :
+                     '_updated';
+      if (tool.id === 'compress') {
+        downloadCompressedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'add-watermark') {
+        downloadWatermarkedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'page-numbers') {
+        downloadNumberedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'crop') {
+        downloadCroppedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'resize') {
+        downloadResizedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'flatten') {
+        downloadFlattenedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else {
+        downloadMetadataPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      }
+    } else if (tool.id === 'extract-images') {
+      if (!extractedImages || extractedImages.length === 0) {
+        setError('No images extracted. Please try extracting again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.pdf$/i, '') : 'extracted';
+      
+      try {
+        // Convert images to the selected format if needed
+        const imagesToDownload = await Promise.all(
+          extractedImages.map(async (img) => {
+            // If format matches, use as is
+            if (img.format === extractImageFormat) {
+              return img;
+            }
+            
+            // Otherwise, convert the image to the selected format
+            const imgElement = document.createElement('img');
+            imgElement.src = img.dataUrl;
+            
+            await new Promise((resolve, reject) => {
+              imgElement.onload = resolve;
+              imgElement.onerror = reject;
+            });
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = imgElement.width;
+            canvas.height = imgElement.height;
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+              throw new Error('Could not get canvas context');
+            }
+            
+            ctx.drawImage(imgElement, 0, 0);
+            
+            const convertedDataUrl = canvas.toDataURL(
+              extractImageFormat === 'JPEG' ? 'image/jpeg' : 'image/png',
+              extractImageFormat === 'JPEG' ? 0.92 : undefined
+            );
+            
+            return {
+              dataUrl: convertedDataUrl,
+              pageNumber: img.pageNumber,
+              index: img.index,
+              format: extractImageFormat,
+            };
+          })
+        );
+        
+        await downloadExtractedImages(imagesToDownload, baseName);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to download images. Please try again.');
+      }
+    } else if (tool.id === 'remove-images' || tool.id === 'optimize-images' || tool.id === 'add-qr-code' ||
+               tool.id === 'add-barcode' || tool.id === 'add-bookmarks' || tool.id === 'add-hyperlinks' ||
+               tool.id === 'add-attachments' || tool.id === 'stamp' || tool.id === 'bates-numbering' ||
+               tool.id === 'fill-sign' || tool.id === 'create-form' || tool.id === 'ocr' ||
+               tool.id === 'searchable-pdf' || tool.id === 'repair' || tool.id === 'linearize' ||
+               tool.id === 'color-space' || tool.id === 'pdfa' || tool.id === 'pdfx' ||
+               tool.id === 'grayscale' || tool.id === 'invert-colors' || tool.id === 'remove-annotations') {
+      if (!processedPdfBytes) {
+        setError('PDF file is not ready. Please try processing again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.pdf$/i, '') : 'processed';
+      const suffix = tool.id === 'remove-images' ? '_no_images' :
+                     tool.id === 'optimize-images' ? '_optimized' :
+                     tool.id === 'add-qr-code' ? '_qr' :
+                     tool.id === 'add-barcode' ? '_barcode' :
+                     tool.id === 'add-bookmarks' ? '_bookmarked' :
+                     tool.id === 'add-hyperlinks' ? '_hyperlinked' :
+                     tool.id === 'add-attachments' ? '_attached' :
+                     tool.id === 'stamp' ? '_stamped' :
+                     tool.id === 'bates-numbering' ? '_bates' :
+                     tool.id === 'fill-sign' ? '_filled_signed' :
+                     tool.id === 'create-form' ? '_form' :
+                     tool.id === 'ocr' ? '_ocr' :
+                     tool.id === 'searchable-pdf' ? '_searchable' :
+                     tool.id === 'repair' ? '_repaired' :
+                     tool.id === 'linearize' ? '_linearized' :
+                     tool.id === 'color-space' ? '_colorspace' :
+                     tool.id === 'pdfa' ? '_pdfa' :
+                     tool.id === 'pdfx' ? '_pdfx' :
+                     tool.id === 'grayscale' ? '_grayscale' :
+                     tool.id === 'invert-colors' ? '_inverted' :
+                     '_updated';
+      if (tool.id === 'remove-images') {
+        downloadNoImagesPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'optimize-images') {
+        downloadOptimizedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'add-qr-code') {
+        downloadQrCodePdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'add-barcode') {
+        downloadBarcodePdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'add-bookmarks') {
+        downloadBookmarkedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'add-hyperlinks') {
+        downloadHyperlinkedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'add-attachments') {
+        downloadAttachedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'stamp') {
+        downloadStampedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'bates-numbering') {
+        downloadBatesPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'fill-sign') {
+        downloadFillSignPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'create-form') {
+        downloadFormPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'ocr') {
+        downloadOcrPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'searchable-pdf') {
+        downloadSearchablePdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'repair') {
+        downloadRepairedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'linearize') {
+        downloadLinearizedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'color-space') {
+        downloadColorSpacePdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'pdfa') {
+        downloadPdfa(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'pdfx') {
+        downloadPdfx(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'grayscale') {
+        downloadGrayscalePdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else if (tool.id === 'invert-colors') {
+        downloadInvertedPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      } else {
+        downloadNoAnnotationsPdf(processedPdfBytes, `${baseName}${suffix}.pdf`);
+      }
+    } else if (tool.id === 'compare' || tool.id === 'pdf-statistics' || tool.id === 'accessibility' || tool.id === 'validate') {
+      if (!processedText) {
+        setError('Results are not ready. Please try processing again.');
+        return;
+      }
+      const baseName = files.length > 0 ? files[0].name.replace(/\.pdf$/i, '') : 'result';
+      const extension = tool.id === 'compare' ? '.json' :
+                        tool.id === 'pdf-statistics' ? '.json' :
+                        tool.id === 'accessibility' ? '.json' :
+                        '.json';
+      downloadText(processedText, `${baseName}_${tool.id}${extension}`);
+    } else {
+      // Stub for other tools
+      alert('This is a stub — download functionality will be implemented soon!');
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const acceptAttr = config.acceptTypes || '.pdf,application/pdf';
+
+  return (
+    <div className="w-full max-w-3xl mx-auto animate-fade-in" >
+      {/* Back button & Title */}
+      <div className="mb-6">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-surface-400 hover:text-surface-200 transition-colors mb-4 group"
+        >
+          <ArrowLeft size={20} strokeWidth={2} className="transition-transform group-hover:-translate-x-1" />
+          <span className="text-sm font-medium">{tr('tools.view.back', 'Back to Tools')}</span>
+        </button>
+
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-primary-500/15 flex items-center justify-center text-primary-400">
+            {tool.icon}
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white">{tr(`tools.items.${tool.id}.title`, tool.title)}</h2>
+            <p className="text-surface-400 text-sm">{tr(`tools.items.${tool.id}.desc`, tool.description)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Steps indicator */}
+      <div className="mb-6 p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+        <div className="flex items-start gap-3">
+          <CheckCircle size={20} strokeWidth={2} className="text-primary-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.view.howItWorks', 'How it works:')}</p>
+            <ol className="space-y-1">
+              {config.steps.map((step, idx) => (
+                <li key={idx} className="flex items-center gap-2 text-sm text-surface-400">
+                  <span className={`
+                    flex-shrink-0 w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center
+                    ${idx === 0 && files.length > 0 ? 'bg-success-500/20 text-success-400' : ''}
+                    ${idx === 0 && files.length === 0 ? 'bg-primary-500/20 text-primary-400' : ''}
+                    ${idx === 1 && files.length > 0 && !isComplete ? 'bg-primary-500/20 text-primary-400' : ''}
+                    ${idx === 1 && (files.length === 0 || isComplete) ? 'bg-surface-700/50 text-surface-500' : ''}
+                    ${idx === 2 && isComplete ? 'bg-success-500/20 text-success-400' : ''}
+                    ${idx === 2 && !isComplete ? 'bg-surface-700/50 text-surface-500' : ''}
+                  `}>
+                    {(idx === 0 && files.length > 0) || (idx === 2 && isComplete) ? (
+                      <CircleCheck size={12} strokeWidth={3} />
+                    ) : (
+                      idx + 1
+                    )}
+                  </span>
+                  <span className={
+                    (idx === 0 && files.length > 0) || (idx === 2 && isComplete)
+                      ? 'text-success-400 line-through'
+                      : ''
+                  }>
+                    {tr(`tools.view.${tool.id}.steps.${idx + 1}`, step)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      {/* Completed state */}
+      {isComplete ? (
+        <div className="animate-fade-in">
+          <div className="p-8 rounded-2xl border border-success-500/30 bg-success-500/5 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-success-500/20 flex items-center justify-center">
+              <CircleCheck size={32} strokeWidth={2} className="text-success-400" />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">{tr('tools.complete.done', 'Done!')}</h3>
+            <p className="text-surface-400 mb-6">
+              {tr('tools.complete.readyPrefix', 'Your')} {config.resultLabel.toLowerCase()} {tr('tools.complete.readySuffix', 'is ready to download.')}
+            </p>
+
+            {/* Download button */}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                className={`btn-primary btn-lg ${
+                  (tool.id === 'merge' && !mergedPdfBytes) || 
+                  ((tool.id === 'split' || tool.id === 'split-by-size' || tool.id === 'split-by-bookmarks') && (!splitPdfResults || splitPdfResults.length === 0)) ||
+                  ((tool.id === 'delete-pages' || tool.id === 'extract-pages') && !processedPdfBytes) ||
+                  (tool.id === 'reorder' && !processedPdfBytes) ||
+                  (tool.id === 'rotate' && !processedPdfBytes) ||
+                  ((tool.id === 'pdf-to-word' || tool.id === 'pdf-to-excel' || tool.id === 'pdf-to-pptx' || 
+                    tool.id === 'html-to-pdf' || tool.id === 'word-to-pdf' || tool.id === 'excel-to-pdf' ||
+                    tool.id === 'compress' || tool.id === 'add-watermark' || tool.id === 'page-numbers' ||
+                    tool.id === 'crop' ||
+                    tool.id === 'resize' || tool.id === 'flatten' || tool.id === 'metadata' ||
+                    tool.id === 'remove-images' || tool.id === 'optimize-images' || tool.id === 'add-qr-code' ||
+                    tool.id === 'add-barcode' || tool.id === 'add-bookmarks' || tool.id === 'add-hyperlinks' ||
+                    tool.id === 'add-attachments' || tool.id === 'stamp' || tool.id === 'bates-numbering' ||
+                    tool.id === 'fill-sign' || tool.id === 'create-form' || tool.id === 'ocr' ||
+                    tool.id === 'searchable-pdf' || tool.id === 'repair' || tool.id === 'linearize' ||
+                    tool.id === 'color-space' || tool.id === 'pdfa' || tool.id === 'pdfx' ||
+                    tool.id === 'grayscale' || tool.id === 'invert-colors' || tool.id === 'remove-annotations') && !processedPdfBytes) ||
+                  ((tool.id === 'pdf-to-text' || tool.id === 'pdf-to-html' || tool.id === 'pdf-to-markdown' ||
+                   tool.id === 'compare' || tool.id === 'pdf-statistics' || tool.id === 'accessibility' ||
+                   tool.id === 'validate') && !processedText) ||
+                  (tool.id === 'pdf-to-csv' && (!processedCsvFiles || processedCsvFiles.length === 0)) ||
+                  (tool.id === 'extract-images' && (!imageResults || imageResults.length === 0))
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : ''
+                }`}
+                onClick={handleDownload}
+                disabled={
+                  (tool.id === 'merge' && !mergedPdfBytes) ||
+                  ((tool.id === 'split' || tool.id === 'split-by-size' || tool.id === 'split-by-bookmarks') && (!splitPdfResults || splitPdfResults.length === 0)) ||
+                  ((tool.id === 'delete-pages' || tool.id === 'extract-pages') && !processedPdfBytes) ||
+                  (tool.id === 'reorder' && !processedPdfBytes) ||
+                  (tool.id === 'rotate' && !processedPdfBytes) ||
+                  ((tool.id === 'pdf-to-word' || tool.id === 'pdf-to-excel' || tool.id === 'pdf-to-pptx' || 
+                    tool.id === 'html-to-pdf' || tool.id === 'word-to-pdf' || tool.id === 'excel-to-pdf' ||
+                    tool.id === 'compress' || tool.id === 'add-watermark' || tool.id === 'page-numbers' ||
+                    tool.id === 'crop' ||
+                    tool.id === 'resize' || tool.id === 'flatten' || tool.id === 'metadata' ||
+                    tool.id === 'remove-images' || tool.id === 'optimize-images' || tool.id === 'add-qr-code' ||
+                    tool.id === 'add-barcode' || tool.id === 'add-bookmarks' || tool.id === 'add-hyperlinks' ||
+                    tool.id === 'add-attachments' || tool.id === 'stamp' || tool.id === 'bates-numbering' ||
+                    tool.id === 'fill-sign' || tool.id === 'create-form' || tool.id === 'ocr' ||
+                    tool.id === 'searchable-pdf' || tool.id === 'repair' || tool.id === 'linearize' ||
+                    tool.id === 'color-space' || tool.id === 'pdfa' || tool.id === 'pdfx' ||
+                    tool.id === 'grayscale' || tool.id === 'invert-colors' || tool.id === 'remove-annotations') && !processedPdfBytes) ||
+                  ((tool.id === 'pdf-to-text' || tool.id === 'pdf-to-html' || tool.id === 'pdf-to-markdown' ||
+                   tool.id === 'compare' || tool.id === 'pdf-statistics' || tool.id === 'accessibility' ||
+                   tool.id === 'validate') && !processedText) ||
+                  (tool.id === 'pdf-to-csv' && (!processedCsvFiles || processedCsvFiles.length === 0)) ||
+                  (tool.id === 'extract-images' && (!imageResults || imageResults.length === 0))
+                }
+              >
+                <FileText size={20} strokeWidth={2} />
+                {tr('tools.complete.download', 'Download')} {config.resultLabel}
+                {(tool.id === 'split' || tool.id === 'split-by-size' || tool.id === 'split-by-bookmarks') && splitPdfResults && splitPdfResults.length > 0 && (
+                  <span className="ml-2 text-xs">({splitPdfResults.length} {tr('tools.complete.files', 'files')})</span>
+                )}
+                {tool.id === 'pdf-to-csv' && processedCsvFiles && processedCsvFiles.length > 1 && (
+                  <span className="ml-2 text-xs">({processedCsvFiles.length} {tr('tools.complete.files', 'files')})</span>
+                )}
+              </button>
+              <button
+                onClick={handleReset}
+                className="btn-secondary btn-lg"
+              >
+                {tr('tools.complete.startOver', 'Start Over')}
+              </button>
+            </div>
+            {tool.id === 'merge' && !mergedPdfBytes && (
+              <p className="text-xs text-warning-400 text-center mt-2">
+                {tr('tools.complete.mergeNotReady', 'Merged PDF is not ready. Please try merging again.')}
+              </p>
+            )}
+            {(tool.id === 'split' || tool.id === 'split-by-size' || tool.id === 'split-by-bookmarks') && (!splitPdfResults || splitPdfResults.length === 0) && (
+              <p className="text-xs text-warning-400 text-center mt-2">
+                {tr('tools.complete.splitNotReady', 'Split PDFs are not ready. Please try splitting again.')}
+              </p>
+            )}
+            {(tool.id === 'delete-pages' || tool.id === 'extract-pages') && !processedPdfBytes && (
+              <p className="text-xs text-warning-400 text-center mt-2">
+                {tool.id === 'delete-pages'
+                  ? tr('tools.complete.updatedNotReady', 'Updated PDF is not ready. Please try again.')
+                  : tr('tools.complete.extractedNotReady', 'Extracted PDF is not ready. Please try again.')}
+              </p>
+            )}
+            {tool.id === 'reorder' && !processedPdfBytes && (
+              <p className="text-xs text-warning-400 text-center mt-2">
+                {tr('tools.complete.reorderedNotReady', 'Reordered PDF is not ready. Please try again.')}
+              </p>
+            )}
+            {tool.id === 'rotate' && !processedPdfBytes && (
+              <p className="text-xs text-warning-400 text-center mt-2">
+                {tr('tools.complete.rotatedNotReady', 'Rotated PDF is not ready. Please try again.')}
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Upload Area */}
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`
+              upload-zone p-8 min-h-[200px] mb-4
+              ${isDragging ? 'upload-zone-active' : ''}
+            `}
+          >
+            <input
+              type="file"
+              accept={acceptAttr}
+              onChange={(e) => handleFiles(e.target.files)}
+              className="hidden"
+              id={`tool-file-input-${tool.id}`}
+              multiple={config.acceptMultiple}
+            />
+
+            <label htmlFor={`tool-file-input-${tool.id}`} className="cursor-pointer w-full">
+              <div className="space-y-4 text-center">
+                <div className={`
+                  relative w-16 h-16 mx-auto rounded-2xl transition-all duration-300
+                  ${isDragging ? 'bg-primary-500/20 scale-110' : 'bg-surface-700/50'}
+                  flex items-center justify-center
+                `}>
+                  <svg
+                    className={`w-8 h-8 transition-colors duration-200 ${isDragging ? 'text-primary-400' : 'text-surface-400'}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                  {isDragging && (
+                    <div className="absolute inset-0 rounded-2xl bg-primary-500/20 animate-pulse" />
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-base font-medium text-surface-200">
+                    {isDragging ? tr('tools.view.dropHere', 'Drop here!') : tr(`tools.view.${tool.id}.uploadLabel`, config.uploadLabel)}
+                  </p>
+                  <p className="text-sm text-surface-500">{tr(`tools.view.${tool.id}.uploadDescription`, config.uploadDescription)}</p>
+                </div>
+
+                <span className="btn btn-md btn-primary inline-flex font-semibold">
+                  <Upload size={16} strokeWidth={2} />
+                  {config.acceptMultiple ? tr('tools.view.chooseFiles', 'Choose Files') : tr('tools.view.chooseFile', 'Choose File')}
+                </span>
+              </div>
+            </label>
+          </div>
+
+          {/* Tool Info Section - Show before file upload */}
+          {files.length === 0 && <ToolInfo tool={tool} />}
+
+          {/* Files list */}
+          {files.length > 0 && (
+            <div className="mb-6 space-y-2 animate-fade-in">
+              <p className="text-sm font-medium text-surface-300 mb-2">
+                {(() => {
+                  const key = 'tools.view.filesSelected';
+                  const msg = t(key);
+                  if (msg && msg !== key) {
+                    return msg.replace('{n}', String(files.length));
+                  }
+                  return `${files.length} file${files.length > 1 ? 's' : ''} selected:`;
+                })()}
+              </p>
+              {files.map((file, idx) => (
+                <div
+                  key={`${file.name}-${idx}`}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-surface-800/50 border border-surface-700/50 group"
+                >
+                  {/* File icon */}
+                  <div className="w-10 h-10 rounded-lg bg-error-500/10 flex items-center justify-center flex-shrink-0">
+                    <FileText size={20} strokeWidth={1.5} className="text-error-400" />
+                  </div>
+
+                  {/* File info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-surface-200 truncate">{file.name}</p>
+                    <p className="text-xs text-surface-500">{formatFileSize(file.size)}</p>
+                  </div>
+
+                  {/* Reorder handle (for multi-file tools) */}
+                  {config.acceptMultiple && files.length > 1 && (
+                    <div className="text-surface-500 cursor-grab" title="Drag to reorder">
+                      <GripVertical size={16} strokeWidth={2} />
+                    </div>
+                  )}
+
+                  {/* Remove button */}
+                  <button
+                    onClick={() => handleRemoveFile(idx)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-error-500/10 text-surface-500 hover:text-error-400 transition-all"
+                    title="Remove file"
+                  >
+                    <X size={16} strokeWidth={2} />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add more files button (for multi-file tools) */}
+              {config.acceptMultiple && (
+                <label
+                  htmlFor={`tool-file-input-${tool.id}`}
+                  className="flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-surface-700/50 hover:border-primary-500/30 text-surface-500 hover:text-primary-400 cursor-pointer transition-colors"
+                >
+                  <Plus size={16} strokeWidth={2} />
+                  <span className="text-sm font-medium">{tr('tools.view.addMoreFiles', 'Add More Files')}</span>
+                </label>
+              )}
+            </div>
+          )}
+
+          {/* Tool-specific options stub */}
+          {files.length > 0 && (
+            <div className="mb-6 animate-fade-in">
+              {/* Reorder pages */}
+              {tool.id === 'reorder' && totalPages !== null && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-2">
+                    {tr('tools.view.reorder.title', 'Reorder Pages')}
+                  </p>
+                  <p className="text-xs text-surface-400 mb-3">
+                    {tr('tools.view.reorder.hint', 'Drag pages to reorder or use position selectors to set the order')}
+                  </p>
+                  <PageReorder
+                    totalPages={totalPages}
+                    pdfFile={files.length > 0 ? files[0] : null}
+                    onChange={setPageOrder}
+                  />
+                </div>
+              )}
+              
+              {/* Compression level */}
+              {tool.id === 'compress' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.view.compress.level', 'Compression Level')}</p>
+                  <div className="flex gap-2">
+                    {(['Low', 'Medium', 'High'] as const).map((level) => {
+                      const levelKey = level.toLowerCase() as 'low' | 'medium' | 'high';
+                      const isSelected = compressionLevel === levelKey;
+                      return (
+                        <button
+                          key={level}
+                          onClick={() => setCompressionLevel(levelKey)}
+                          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            isSelected 
+                              ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' 
+                              : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                          }`}
+                        >
+                          {tr(`tools.view.compress.${levelKey}`, level)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Rotate pages */}
+              {tool.id === 'rotate' && totalPages !== null && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-2">
+                    {tr('tools.view.rotate.title', 'Rotate Pages')}
+                  </p>
+                  <p className="text-xs text-surface-400 mb-3">
+                    {tr('tools.view.rotate.help', 'Select pages and choose rotation angle. Click on thumbnails to preview.')}
+                  </p>
+                  <PageRotate
+                    totalPages={totalPages}
+                    pdfFile={files.length > 0 ? files[0] : null}
+                    onChange={setPageRotations}
+                  />
+                </div>
+              )}
+
+              {/* Image format and settings for pdf-to-images */}
+              {tool.id === 'pdf-to-images' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.pdfToImages.imageFormat', 'Image Format')}</p>
+                    <div className="flex gap-2">
+                      {(['PNG', 'JPEG', 'WebP'] as ImageFormat[]).map((format) => (
+                        <button
+                          key={format}
+                          onClick={() => setImageFormat(format)}
+                          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            format === imageFormat
+                              ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                              : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                          }`}
+                        >
+                          {format}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quality slider for JPEG/WebP */}
+                  {(imageFormat === 'JPEG' || imageFormat === 'WebP') && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-surface-200">{tr('tools.pdfToImages.quality', 'Quality')}</p>
+                        <span className="text-xs text-surface-400">{Math.round(imageQuality * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1"
+                        step="0.01"
+                        value={imageQuality}
+                        onChange={(e) => setImageQuality(parseFloat(e.target.value))}
+                        className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                      />
+                      <div className="flex justify-between text-xs text-surface-500 mt-1">
+                        <span>{tr('tools.pdfToImages.lowerSize', 'Lower size')}</span>
+                        <span>{tr('tools.pdfToImages.higherQuality', 'Higher quality')}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scale factor */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-surface-200">{tr('tools.pdfToImages.resolutionScale', 'Resolution Scale')}</p>
+                      <span className="text-xs text-surface-400">{imageScale}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="4"
+                      step="0.5"
+                      value={imageScale}
+                      onChange={(e) => setImageScale(parseFloat(e.target.value))}
+                      className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                    />
+                    <div className="flex justify-between text-xs text-surface-500 mt-1">
+                      <span>{tr('tools.pdfToImages.lowerQuality', 'Lower quality')}</span>
+                      <span>{tr('tools.pdfToImages.higherQuality', 'Higher quality')}</span>
+                    </div>
+                    <p className="text-xs text-surface-500 mt-2">
+                      {imageScale === 1
+                        ? tr('tools.pdfToImages.originalSize', 'Original size')
+                        : imageScale < 1
+                          ? tr('tools.pdfToImages.reducedSize', 'Reduced size')
+                          : tr('tools.pdfToImages.enhancedSize', 'Enhanced size')} ({imageScale * 100}% {tr('tools.pdfToImages.ofOriginal', 'of original')})
+                    </p>
+                  </div>
+
+                  {/* Page range selector */}
+                  {totalPages && (
+                    <div>
+                      <p className="text-sm font-medium text-surface-200 mb-2">
+                        {tr('tools.pdfToImages.pagesOptional', 'Pages to Convert (optional)')}
+                      </p>
+                      <p className="text-xs text-surface-400 mb-3">
+                        {tr('tools.pdfToImages.pagesHelp', 'Leave empty to convert all pages. Examples: "1-5", "1,3,5", "1-3,5,7-9"')}
+                      </p>
+                      <input
+                        type="text"
+                        value={pageRange}
+                        onChange={(e) => setPageRange(e.target.value)}
+                        placeholder={`${tr('tools.pdfToImages.allPages', 'All pages')} (1-${totalPages})`}
+                        className="w-full px-3 py-2 rounded-lg bg-surface-700/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50"
+                      />
+                      {pageRange.trim() && (
+                        <p className="text-xs text-surface-500 mt-2">
+                          PDF has {totalPages} page{totalPages !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Page range for pdf-to-word */}
+              {tool.id === 'pdf-to-word' && totalPages && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">
+                      {tr('tools.pdfToWord.pagesOptional', 'Pages to Convert (optional)')}
+                    </p>
+                    <p className="text-xs text-surface-400 mb-3">
+                      {tr('tools.pdfToWord.pagesHelp', 'Leave empty to convert all pages. Examples: "1-5", "1,3,5", "1-3,5,7-9"')}
+                    </p>
+                    <input
+                      type="text"
+                      value={pageRange}
+                      onChange={(e) => setPageRange(e.target.value)}
+                      placeholder={`${tr('tools.pdfToWord.allPages', 'All pages')} (1-${totalPages})`}
+                      className="w-full px-3 py-2 rounded-lg bg-surface-700/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50"
+                    />
+                    {pageRange.trim() && (
+                      <p className="text-xs text-surface-500 mt-2">
+                        {tr('tools.pdfToWord.pdfHas', 'PDF has')} {totalPages} {totalPages !== 1 ? tr('pageselector.pages', 'pages') : tr('pageselector.page', 'page')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Page range for split/extract/delete */}
+              {(tool.id === 'split' || tool.id === 'extract-pages' || tool.id === 'delete-pages') && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">
+                      {tool.id === 'split' 
+                        ? tr('tools.split.heading', 'Pages to Split Into Separate Files') 
+                        : tool.id === 'extract-pages' 
+                          ? tr('tools.extract.heading', 'Pages to Extract') 
+                          : tr('tools.delete.heading', 'Pages to Delete')}
+                    </p>
+                    {tool.id === 'split' && (
+                      <p className="text-xs text-surface-400 mb-3">
+                        {tr('tools.split.section.desc', 'Select which pages should be split into separate PDF files. Each range will create a new file.')}
+                      </p>
+                    )}
+                    {(tool.id === 'extract-pages' || tool.id === 'delete-pages') && (
+                      <p className="text-xs text-surface-400 mb-3">
+                        {tool.id === 'extract-pages' 
+                          ? tr('tools.extract.section.desc', 'Click on pages to select which ones to extract into a new PDF file.')
+                          : tr('tools.delete.section.desc', 'Click on pages to select which ones to delete from the PDF.')}
+                      </p>
+                    )}
+                    
+                    {tool.id === 'split' ? (
+                      <PageRangeSelector
+                        totalPages={totalPages}
+                        value={pageRange}
+                        onChange={handlePageRangeChange}
+                        onWarningChange={setPageRangeWarning}
+                      />
+                    ) : (
+                      <PageSelector
+                        totalPages={totalPages}
+                        value={pageRange}
+                        onChange={handlePageRangeChange}
+                      />
+                    )}
+                    
+                    {pageRangeWarning && (
+                      <div className="mt-2 p-2 rounded-lg bg-warning-500/10 border border-warning-500/20">
+                        <p className="text-xs text-warning-300">{pageRangeWarning}</p>
+                      </div>
+                    )}
+                    {totalPages && !pageRangeWarning && pageRange.trim() && (
+                      <p className="text-xs text-success-400 mt-2">
+                        {tr('tools.pages.ok', `✓ PDF has ${totalPages} page${totalPages !== 1 ? 's' : ''}. Your selection looks good!`)}
+                      </p>
+                    )}
+                  </div>
+                  
+                  {tool.id === 'split' && (
+                    <div className="p-3 rounded-lg bg-primary-500/10 border border-primary-500/20">
+                      <p className="text-xs font-semibold text-primary-300 mb-2">📋 {tr('tools.view.howItWorks', 'How it works:')}</p>
+                      <ul className="text-xs text-surface-400 space-y-1.5 list-disc list-inside">
+                        <li>{tr('tools.split.tips.1', 'Each range you add creates a separate PDF file')}</li>
+                        <li>{tr('tools.split.tips.2', 'Use "From page" and "To page" to select a range (e.g., pages 1-5)')}</li>
+                        <li>{tr('tools.split.tips.3', 'If "From" and "To" are the same, it creates a file with a single page')}</li>
+                        <li>{tr('tools.split.tips.4', 'You can add multiple ranges to split the PDF into multiple files')}</li>
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {tool.id === 'split' && (
+                    <p className="text-xs text-surface-500">
+                      {tr('tools.split.note', '⚠️ Note: You cannot select all pages - split requires selecting only some pages to create separate files.')}
+                    </p>
+                  )}
+                  {(tool.id === 'extract-pages' || tool.id === 'delete-pages') && (
+                    <p className="text-xs text-surface-500">
+                      {tool.id === 'delete-pages' 
+                        ? tr('tools.delete.note', '⚠️ Note: You cannot delete all pages - at least one page must remain.')
+                        : tr('tools.extract.note', 'Select one or more pages to extract into a new PDF file.')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Signature settings for sign */}
+              {tool.id === 'sign' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.sign.signatureType', 'Signature Type')}</p>
+                    <div className="flex gap-2">
+                      {(['draw', 'type', 'image'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => {
+                            setSignatureType(type);
+                            setSignatureData('');
+                            setTypedSignature('');
+                            if (type !== 'type') {
+                              setSignatureFontSize(24);
+                            }
+                          }}
+                          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            signatureType === type 
+                              ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' 
+                              : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                          }`}
+                        >
+                          {type === 'draw'
+                            ? tr('tools.sign.draw', 'Draw')
+                            : type === 'type'
+                              ? tr('tools.sign.type', 'Type')
+                              : tr('tools.sign.uploadImage', 'Upload Image')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {signatureType === 'draw' && (
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsSignaturePadOpen(true)}
+                        className="w-full px-4 py-3 rounded-lg bg-primary-500/10 border border-primary-500/30 text-primary-300 hover:bg-primary-500/20 transition-all text-sm font-medium"
+                      >
+                        {signatureData ? tr('tools.sign.editSignature', 'Edit Signature') : tr('tools.sign.drawSignature', 'Draw Signature')}
+                      </button>
+                      {signatureData && (
+                        <div className="relative">
+                          <img 
+                            src={signatureData} 
+                            alt="Signature" 
+                            className="w-full h-32 object-contain bg-white rounded-lg border border-surface-600/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSignatureData('');
+                              setIsSignaturePadOpen(false);
+                            }}
+                            className="absolute top-2 right-2 p-1 rounded-full bg-error-500/20 hover:bg-error-500/30 text-error-400 transition-colors"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {signatureType === 'type' && (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.sign.enterName', 'Enter Your Name')}</p>
+                        <input
+                          type="text"
+                          value={typedSignature}
+                          onChange={(e) => setTypedSignature(e.target.value)}
+                          placeholder={tr('tools.sign.namePlaceholder', 'John Doe')}
+                          className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.sign.fontSize', 'Font Size')}</p>
+                        <input
+                          type="number"
+                          value={signatureFontSize}
+                          onChange={(e) => setSignatureFontSize(Math.max(8, Math.min(72, parseInt(e.target.value) || 24)))}
+                          min="8"
+                          max="72"
+                          className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                        />
+                      </div>
+                      {typedSignature && (
+                        <div className="p-4 rounded-lg border border-surface-600/50 aspect-square flex items-center justify-center" style={{ backgroundColor: 'transparent' }}>
+                          <p className="font-bold text-black text-center" style={{ 
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                            fontSize: `${signatureFontSize}px`
+                          }}>
+                            {typedSignature}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {signatureType === 'image' && (
+                    <div className="space-y-3">
+                      <label className="block">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const dataUrl = event.target?.result as string;
+                                setSignatureData(dataUrl);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <div className="w-full px-4 py-3 rounded-lg bg-primary-500/10 border border-primary-500/30 text-primary-300 hover:bg-primary-500/20 transition-all text-sm font-medium text-center cursor-pointer">
+                          {signatureData ? tr('tools.sign.changeImage', 'Change Image') : tr('tools.sign.uploadSignatureImage', 'Upload Signature Image')}
+                        </div>
+                      </label>
+                      {signatureData && (
+                        <div className="relative">
+                          <img 
+                            src={signatureData} 
+                            alt="Signature" 
+                            className="w-full h-32 object-contain bg-white rounded-lg border border-surface-600/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSignatureData('')}
+                            className="absolute top-2 right-2 p-1 rounded-full bg-error-500/20 hover:bg-error-500/30 text-error-400 transition-colors"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Position selector */}
+                  {files.length > 0 && (signatureData || (signatureType === 'type' && typedSignature.trim())) && (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.sign.signaturePosition', 'Signature Position')}</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsPositionSelectorOpen(true)}
+                          className="w-full px-4 py-3 rounded-lg bg-primary-500/10 border border-primary-500/30 text-primary-300 hover:bg-primary-500/20 transition-all text-sm font-medium flex items-center justify-center gap-2"
+                        >
+                          <FileText size={18} />
+                          {signaturePage && (signatureX !== 0.5 || signatureY !== 0.5)
+                            ? `${tr('tools.sign.page', 'Page')} ${signaturePage} - ${tr('tools.sign.position', 'Position')} (${signatureX.toFixed(2)}, ${signatureY.toFixed(2)})`
+                            : tr('tools.sign.selectPosition', 'Select Position on PDF')}
+                        </button>
+                        {signaturePage && totalPages && (
+                          <p className="text-xs text-surface-500 mt-1">
+                            {tr('tools.sign.current', 'Current')}: {tr('tools.sign.page', 'Page')} {signaturePage} {tr('tools.sign.of', 'of')} {totalPages} {tr('tools.sign.at', 'at')} ({signatureX.toFixed(2)}, {signatureY.toFixed(2)})
+                          </p>
+                        )}
+                        <p className="text-xs text-surface-400 mt-1">
+                          {tr('tools.sign.positionHint', 'Click to open PDF preview and select where to place your signature')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Watermark options */}
+              {tool.id === 'add-watermark' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm font-medium text-surface-200">{tr('tools.watermark.header', 'Watermarks')}</p>
+                      {watermarks.length > 0 && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Clear all watermarks? This will remove them from localStorage as well.')) {
+                              setWatermarks([]);
+                              if (typeof window !== 'undefined') {
+                                localStorage.removeItem('pdfeditor_watermarks');
+                              }
+                            }
+                          }}
+                          className="px-2 py-1 rounded-lg bg-surface-700/50 hover:bg-surface-700 text-surface-400 hover:text-surface-200 text-xs transition-colors"
+                          title="Clear all watermarks"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newWatermark: WatermarkConfig = {
+                          id: `watermark-${Date.now()}`,
+                          type: 'text',
+                          text: 'WATERMARK',
+                          position: 'diagonal',
+                          opacity: 30,
+                          rotation: -45,
+                          fontSize: 48,
+                          color: { r: 0.7, g: 0.7, b: 0.7 },
+                          scale: 0.5,
+                        };
+                        setWatermarks([...watermarks, newWatermark]);
+                        setEditingWatermarkId(newWatermark.id);
+                        // Automatically open preview after adding watermark
+                        if (files.length > 0) {
+                          setTimeout(() => setIsWatermarkPreviewOpen(true), 100);
+                        }
+                      }}
+                      className="px-6 py-3 rounded-lg bg-primary-500/20 hover:bg-primary-500/30 border-2 border-primary-500/40 text-primary-300 text-sm font-semibold transition-all flex items-center gap-2 shadow-lg shadow-primary-500/20 hover:shadow-xl hover:shadow-primary-500/30 hover:scale-105"
+                    >
+                      <Plus size={18} />
+                      Add Watermark
+                    </button>
+                  </div>
+
+                  {watermarks.length === 0 ? (
+                    <p className="text-xs text-surface-500 text-center py-4">
+                      No watermarks added. Click "Add Watermark" to create one.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {watermarks.map((watermark, index) => {
+                        const isEditing = editingWatermarkId === watermark.id;
+                        return (
+                          <div
+                            key={watermark.id}
+                            className={`p-3 rounded-lg border transition-all ${
+                              isEditing
+                                ? 'bg-surface-700/50 border-primary-500/50'
+                                : 'bg-surface-900/30 border-surface-600/30'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-surface-400">
+                                  Watermark {index + 1}
+                                </span>
+                                <span className="text-xs px-2 py-0.5 rounded bg-surface-700/50 text-surface-400">
+                                  {watermark.type === 'text' ? 'Text' : 'Image'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setIsWatermarkPreviewOpen(true)}
+                                  className="p-1.5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+                                  title="Preview"
+                                >
+                                  <FileText size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (isEditing) {
+                                      setEditingWatermarkId(null);
+                                    } else {
+                                      setEditingWatermarkId(watermark.id);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+                                  title={isEditing ? 'Done' : 'Edit'}
+                                >
+                                  {isEditing ? <CheckCircle size={14} /> : <PenSquare size={14} />}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setWatermarks(watermarks.filter(w => w.id !== watermark.id));
+                                    if (editingWatermarkId === watermark.id) {
+                                      setEditingWatermarkId(null);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded hover:bg-surface-700 text-surface-400 hover:text-surface-200 transition-colors"
+                                  title="Delete"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            </div>
+
+                            {isEditing && (
+                              <div className="space-y-3 mt-3 pt-3 border-t border-surface-700/50">
+                                {/* Type selector */}
+                                <div>
+                                  <p className="text-xs font-medium text-surface-300 mb-2">{tr('tools.watermark.type', 'Type')}</p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setWatermarks(watermarks.map(w =>
+                                          w.id === watermark.id ? { ...w, type: 'text' as const } : w
+                                        ));
+                                      }}
+                                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                                        watermark.type === 'text'
+                                          ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                          : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                                      }`}
+                                    >
+                                      Text
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setWatermarks(watermarks.map(w =>
+                                          w.id === watermark.id ? { ...w, type: 'image' as const } : w
+                                        ));
+                                      }}
+                                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                                        watermark.type === 'image'
+                                          ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                          : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                                      }`}
+                                    >
+                                      Image
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Text watermark options */}
+                                {watermark.type === 'text' && (
+                                  <>
+                                    <div>
+                                      <p className="text-xs font-medium text-surface-300 mb-2">{tr('tools.watermark.textLabel', 'Text')}</p>
+                                      <input
+                                        type="text"
+                                        value={watermark.text || ''}
+                                        onChange={(e) => {
+                                          setWatermarks(watermarks.map(w =>
+                                            w.id === watermark.id ? { ...w, text: e.target.value } : w
+                                          ));
+                                        }}
+                                        placeholder="e.g. CONFIDENTIAL, DRAFT"
+                                        className="w-full px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                                      />
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-medium text-surface-300 mb-2">
+                                        Font Size: {watermark.fontSize || 48}px
+                                      </p>
+                                      <input
+                                        type="range"
+                                        min="12"
+                                        max="120"
+                                        value={watermark.fontSize || 48}
+                                        onChange={(e) => {
+                                          setWatermarks(watermarks.map(w =>
+                                            w.id === watermark.id ? { ...w, fontSize: parseInt(e.target.value) } : w
+                                          ));
+                                        }}
+                                        className="w-full"
+                                      />
+                                    </div>
+                                  </>
+                                )}
+
+                                {/* Image watermark options */}
+                                {watermark.type === 'image' && (
+                                  <div>
+                                    <p className="text-xs font-medium text-surface-300 mb-2">{tr('tools.watermark.imageLabel', 'Image')}</p>
+                                    <input
+                                      type="file"
+                                      accept="image/png,image/jpeg,image/jpg"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const reader = new FileReader();
+                                          reader.onload = (event) => {
+                                            const dataUrl = event.target?.result as string;
+                                            setWatermarks(watermarks.map(w =>
+                                              w.id === watermark.id
+                                                ? { ...w, imageFile: file, imageDataUrl: dataUrl }
+                                                : w
+                                            ));
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                      className="w-full px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                                    />
+                                    {watermark.imageDataUrl && (
+                                      <img
+                                        src={watermark.imageDataUrl}
+                                        alt="Watermark preview"
+                                        className="mt-2 max-w-full max-h-32 object-contain rounded"
+                                      />
+                                    )}
+                                    <div className="mt-2">
+                                      <p className="text-xs font-medium text-surface-300 mb-2">
+                                        Scale: {Math.round((watermark.scale || 0.5) * 100)}%
+                                      </p>
+                                      <input
+                                        type="range"
+                                        min="10"
+                                        max="100"
+                                        value={(watermark.scale || 0.5) * 100}
+                                        onChange={(e) => {
+                                          setWatermarks(watermarks.map(w =>
+                                            w.id === watermark.id
+                                              ? { ...w, scale: parseInt(e.target.value) / 100 }
+                                              : w
+                                          ));
+                                        }}
+                                        className="w-full"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Position selector */}
+                                <div>
+                                  <p className="text-xs font-medium text-surface-300 mb-2">{tr('tools.watermark.position', 'Position')}</p>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    {['center', 'top-left', 'top-right', 'bottom-left', 'bottom-right', 'diagonal'].map((pos) => (
+                                      <button
+                                        key={pos}
+                                      onClick={() => {
+                                        setWatermarks(watermarks.map(w =>
+                                          w.id === watermark.id
+                                            ? { ...w, position: pos as WatermarkConfig['position'] }
+                                            : w
+                                        ));
+                                      }}
+                                        className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                          watermark.position === pos
+                                            ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                            : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                                        }`}
+                                      >
+                                        {pos.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Opacity and Rotation */}
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium text-surface-300 mb-2">
+                                      Opacity: {watermark.opacity}%
+                                    </p>
+                                    <input
+                                      type="range"
+                                      min="10"
+                                      max="100"
+                                      value={watermark.opacity}
+                                      onChange={(e) => {
+                                        setWatermarks(watermarks.map(w =>
+                                          w.id === watermark.id ? { ...w, opacity: parseInt(e.target.value) } : w
+                                        ));
+                                      }}
+                                      className="w-full"
+                                    />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-surface-300 mb-2">
+                                      Angle: {watermark.rotation}°
+                                    </p>
+                                    <input
+                                      type="range"
+                                      min="-90"
+                                      max="90"
+                                      value={watermark.rotation}
+                                      onChange={(e) => {
+                                        setWatermarks(watermarks.map(w =>
+                                          w.id === watermark.id ? { ...w, rotation: parseInt(e.target.value) } : w
+                                        ));
+                                      }}
+                                      className="w-full"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {!isEditing && (
+                              <div className="text-xs text-surface-500 mt-2">
+                                {watermark.type === 'text' && watermark.text && (
+                                  <span>Text: "{watermark.text}"</span>
+                                )}
+                                {watermark.type === 'image' && watermark.imageFile && (
+                                  <span>Image: {watermark.imageFile.name}</span>
+                                )}
+                                <span className="mx-2">•</span>
+                                <span>Position: {watermark.position}</span>
+                                <span className="mx-2">•</span>
+                                <span>Opacity: {watermark.opacity}%</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {watermarks.length > 0 && (
+                    <button
+                      onClick={() => setIsWatermarkPreviewOpen(true)}
+                      className="w-full mt-4 px-4 py-2.5 rounded-lg bg-primary-500/20 hover:bg-primary-500/30 border border-primary-500/40 text-primary-300 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <FileText size={16} />
+                      Preview Watermarks
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Page numbers options */}
+              {tool.id === 'page-numbers' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4 relative z-10">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.pageNumbers.position', 'Position')}</p>
+                    <div className="grid grid-cols-3 gap-2 relative z-10">
+                      {[
+                        { label: 'Top Left', value: 'top-left' as const },
+                        { label: 'Top Center', value: 'top-center' as const },
+                        { label: 'Top Right', value: 'top-right' as const },
+                        { label: 'Bottom Left', value: 'bottom-left' as const },
+                        { label: 'Bottom Center', value: 'bottom-center' as const },
+                        { label: 'Bottom Right', value: 'bottom-right' as const }
+                      ].map((pos) => (
+                        <button
+                          key={pos.value}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('Setting page number position to:', pos.value);
+                            setPageNumberPosition(pos.value);
+                          }}
+                          className={`px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                            pageNumberPosition === pos.value
+                              ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                              : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                          }`}
+                        >
+                          {pos.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.pageNumbers.startFrom', 'Start from')}</p>
+                    <input
+                      type="number"
+                      value={pageNumberStart}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val >= 1) {
+                          setPageNumberStart(val);
+                        } else if (e.target.value === '') {
+                          setPageNumberStart(1);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (isNaN(val) || val < 1) {
+                          setPageNumberStart(1);
+                        }
+                      }}
+                      min={1}
+                      className="w-24 px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Stamp options */}
+              {tool.id === 'stamp' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.stamp.type', 'Stamp type')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['APPROVED', 'DRAFT', 'CONFIDENTIAL', 'FINAL', 'COPY', 'VOID', 'RECEIVED', 'Custom...'].map((s) => (
+                      <button
+                        key={s}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${s === 'APPROVED' ? 'bg-success-500/20 border border-success-500/40 text-success-300' : s === 'Custom...' ? 'bg-primary-500/10 border border-primary-500/30 text-primary-400' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Resize / page size */}
+              {tool.id === 'resize' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.resize.targetSize', 'Target page size')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['A4', 'A3', 'A5', 'Letter', 'Legal', 'Tabloid', 'Custom'].map((size) => (
+                      <button
+                        key={size}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${size === 'A4' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Metadata fields */}
+              {tool.id === 'metadata' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-3">
+                  {['Title', 'Author', 'Subject', 'Keywords', 'Creator'].map((field) => (
+                    <div key={field}>
+                      <p className="text-sm font-medium text-surface-200 mb-1">{field}</p>
+                      <input
+                        type="text"
+                        placeholder={`Enter ${field.toLowerCase()}...`}
+                        className="w-full px-4 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Flatten options */}
+              {tool.id === 'flatten' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-3">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.flatten.what', 'What to flatten')}</p>
+                  {['Form Fields', 'Annotations', 'Comments', 'All Layers'].map((opt) => (
+                    <label key={opt} className="flex items-center gap-3 cursor-pointer group">
+                      <input type="checkbox" defaultChecked={opt === 'All Layers'} className="w-4 h-4 rounded border-surface-600 bg-surface-800 text-primary-500 focus:ring-primary-500/25" />
+                      <span className="text-sm text-surface-300 group-hover:text-surface-100 transition-colors">{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+
+              {/* Insert blank page - position */}
+              {tool.id === 'insert-blank' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.view.insert-blank.position', 'Insert Position')}</p>
+                    <div className="flex gap-2">
+                      {[
+                        { label: tr('tools.view.insert-blank.beginning','Beginning'), value: 'beginning' as const },
+                        { label: tr('tools.view.insert-blank.end','End'), value: 'end' as const },
+                        { label: tr('tools.view.insert-blank.after','After Page...'), value: 'after' as const }
+                      ].map((pos) => (
+                        <button
+                          key={pos.value}
+                          onClick={() => setInsertPosition(pos.value)}
+                          className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            insertPosition === pos.value
+                              ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                              : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                          }`}
+                        >
+                          {pos.label}
+                        </button>
+                      ))}
+                    </div>
+                    {insertPosition === 'after' && totalPages && (
+                      <div className="mt-3">
+                        <p className="text-xs text-surface-400 mb-1.5">{tr('tools.view.insert-blank.afterWhich', 'After which page?')}</p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            value={afterPageNumber}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val) && totalPages !== null) {
+                                // Allow typing, but clamp to valid range
+                                const clamped = Math.max(1, Math.min(totalPages, val));
+                                setAfterPageNumber(clamped);
+                              } else if (e.target.value === '') {
+                                // Allow empty input while typing
+                                setAfterPageNumber(1);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              // Ensure valid value on blur
+                              const val = parseInt(e.target.value);
+                              if (isNaN(val) || val < 1) {
+                                setAfterPageNumber(1);
+                              } else if (totalPages !== null && val > totalPages) {
+                                setAfterPageNumber(totalPages);
+                              }
+                            }}
+                            min={1}
+                            max={totalPages ?? 1}
+                            className="w-24 px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                          />
+                          <span className="text-xs text-surface-500">{tr('tools.insertBlank.of', 'of')} {totalPages}</span>
+                        </div>
+                        <p className="text-xs text-surface-500 mt-1.5">
+                          {tr('tools.insertBlank.afterPageHint', 'Blank pages will be inserted after page')} {afterPageNumber}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-surface-200">{tr('tools.insertBlank.countTitle', 'Number of Blank Pages')}</p>
+                      <span className="text-xs text-surface-500">
+                        {numberOfBlankPages} {numberOfBlankPages === 1 ? tr('pageselector.page', 'page') : tr('pageselector.pages', 'pages')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        value={numberOfBlankPages}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val)) {
+                            // Allow typing, but clamp to valid range
+                            const clamped = Math.max(1, Math.min(100, val));
+                            setNumberOfBlankPages(clamped);
+                          } else if (e.target.value === '') {
+                            // Allow empty input while typing
+                            setNumberOfBlankPages(1);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Ensure valid value on blur
+                          const val = parseInt(e.target.value);
+                          if (isNaN(val) || val < 1) {
+                            setNumberOfBlankPages(1);
+                          } else if (val > 100) {
+                            setNumberOfBlankPages(100);
+                          }
+                        }}
+                        min={1}
+                        max={100}
+                        className="w-24 px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setNumberOfBlankPages(Math.max(1, numberOfBlankPages - 1))}
+                          className="px-3 py-1.5 rounded-lg bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium"
+                          disabled={numberOfBlankPages <= 1}
+                        >
+                          −
+                        </button>
+                        <button
+                          onClick={() => setNumberOfBlankPages(Math.min(100, numberOfBlankPages + 1))}
+                          className="px-3 py-1.5 rounded-lg bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium"
+                          disabled={numberOfBlankPages >= 100}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-surface-500 mt-2">
+                      {insertPosition === 'beginning' && tr('tools.view.insert-blank.summary.beginning', `Will add ${numberOfBlankPages} blank ${numberOfBlankPages === 1 ? 'page' : 'pages'} at the beginning of your PDF`)}
+                      {insertPosition === 'end' && tr('tools.view.insert-blank.summary.end', `Will add ${numberOfBlankPages} blank ${numberOfBlankPages === 1 ? 'page' : 'pages'} at the end of your PDF`)}
+                      {insertPosition === 'after' && totalPages && tr('tools.view.insert-blank.summary.after', `Will add ${numberOfBlankPages} blank ${numberOfBlankPages === 1 ? 'page' : 'pages'} after page ${afterPageNumber}`)}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Duplicate pages */}
+              {tool.id === 'duplicate-pages' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium text-surface-200">{tr('tools.duplicate.selectTitle', 'Select Pages to Duplicate')}</p>
+                      {totalPages && (
+                        <span className="text-xs text-surface-500">
+                          {tr('tools.duplicate.total', 'Total')}: {totalPages} {tr('pageselector.pages', 'pages')}
+                        </span>
+                      )}
+                    </div>
+                    {totalPages ? (
+                      <PageSelector
+                        totalPages={totalPages}
+                        value={duplicatePageRange}
+                        onChange={setDuplicatePageRange}
+                      />
+                    ) : (
+                      <p className="text-xs text-surface-400">{tr('pageselector.uploadToSelect', 'Upload a PDF file to select pages')}</p>
+                    )}
+                    <p className="text-xs text-surface-500 mt-3">
+                      {tr('tools.duplicate.hint', 'Each selected page will be duplicated right after its original in the PDF.')}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium text-surface-200">{tr('tools.duplicate.numCopies', 'Number of Copies')}</p>
+                      <span className="text-xs text-surface-500">
+                        {numberOfCopies}{' '}
+                        {numberOfCopies === 1
+                          ? tr('tools.duplicate.copy', 'copy')
+                          : tr('tools.duplicate.copies', 'copies')}{' '}
+                        {tr('tools.duplicate.perPage', 'per page')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        value={numberOfCopies}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val)) {
+                            const clamped = Math.max(1, Math.min(10, val));
+                            setNumberOfCopies(clamped);
+                          } else if (e.target.value === '') {
+                            setNumberOfCopies(1);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (isNaN(val) || val < 1) {
+                            setNumberOfCopies(1);
+                          } else if (val > 10) {
+                            setNumberOfCopies(10);
+                          }
+                        }}
+                        min={1}
+                        max={10}
+                        className="w-24 px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setNumberOfCopies(Math.max(1, numberOfCopies - 1))}
+                          className="px-3 py-1.5 rounded-lg bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium"
+                          disabled={numberOfCopies <= 1}
+                        >
+                          −
+                        </button>
+                        <button
+                          onClick={() => setNumberOfCopies(Math.min(10, numberOfCopies + 1))}
+                          className="px-3 py-1.5 rounded-lg bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium"
+                          disabled={numberOfCopies >= 10}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    {duplicatePageRange && totalPages !== null && (() => {
+                      try {
+                        const pages = parsePageRange(duplicatePageRange, totalPages);
+                        const totalNewPages = pages.length * numberOfCopies;
+                        return pages.length > 0 ? (
+                          <p className="text-xs text-primary-400 mt-2 font-medium">
+                            ✓ {tr('tools.duplicate.willCreate', 'Will create')} {totalNewPages} {tr('tools.duplicate.duplicate', 'duplicate')} {totalNewPages === 1 ? tr('pageselector.page', 'page') : tr('pageselector.pages', 'pages')} ({pages.length} {tr('tools.duplicate.original', 'original')} {pages.length === 1 ? tr('pageselector.page', 'page') : tr('pageselector.pages', 'pages')} × {numberOfCopies} {numberOfCopies === 1 ? tr('tools.duplicate.copy', 'copy') : tr('tools.duplicate.copies', 'copies')})
+                          </p>
+                        ) : null;
+                      } catch {
+                        return null;
+                      }
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Split by size */}
+              {tool.id === 'split-by-size' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.splitBySize.maxPerPart', 'Max File Size Per Part')}</p>
+                    
+                    {/* Quick presets */}
+                    <div className="mb-4">
+                      <p className="text-xs text-surface-400 mb-2">{tr('tools.splitBySize.quickPresets', 'Quick presets:')}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {['5 MB', '10 MB', '25 MB', '50 MB', '100 MB'].map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => {
+                              setMaxFileSize(s);
+                              setUseCustomSize(false);
+                            }}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              !useCustomSize && maxFileSize === s
+                                ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Custom size input */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-surface-300">{tr('tools.splitBySize.custom', 'Or set custom size:')}</p>
+                        <button
+                          onClick={() => setUseCustomSize(!useCustomSize)}
+                          className={`text-xs px-3 py-1 rounded-lg transition-all ${
+                            useCustomSize
+                              ? 'bg-primary-500/20 text-primary-300 border border-primary-500/40'
+                              : 'bg-surface-700/30 text-surface-400 border border-surface-600/30 hover:bg-surface-700/50'
+                          }`}
+                        >
+                          {useCustomSize ? tr('tools.splitBySize.usingCustom', 'Using Custom') : tr('tools.splitBySize.useCustom', 'Use Custom')}
+                        </button>
+                      </div>
+                      
+                      {useCustomSize && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={customSizeValue}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) > 0)) {
+                                  setCustomSizeValue(val);
+                                }
+                              }}
+                              min="0.1"
+                              step="0.1"
+                              placeholder={tr('tools.splitBySize.customPlaceholder', '10')}
+                              className="flex-1 px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                            />
+                            <select
+                              value={customSizeUnit}
+                              onChange={(e) => setCustomSizeUnit(e.target.value)}
+                              className="px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                            >
+                              <option value="KB">KB</option>
+                              <option value="MB">MB</option>
+                              <option value="GB">GB</option>
+                            </select>
+                          </div>
+                          
+                          {/* Validation feedback */}
+                          {customSizeValue && (() => {
+                            try {
+                              const sizeNum = parseFloat(customSizeValue);
+                              if (isNaN(sizeNum) || sizeNum <= 0) {
+                                return (
+                                  <p className="text-xs text-error-400">
+                                    ⚠ {tr('tools.splitBySize.validNumber', 'Please enter a valid number')}
+                                  </p>
+                                );
+                              }
+                              
+                              const customSizeStr = `${customSizeValue} ${customSizeUnit}`;
+                              const customSizeBytes = parseSizeToBytes(customSizeStr);
+                              const isValid = !minSizeBytes || customSizeBytes >= minSizeBytes;
+                              
+                              if (!isValid && minSizeBytes !== null) {
+                                return (
+                                  <p className="text-xs text-error-400">
+                                    ⚠ {tr('tools.splitBySize.minSize', 'Size must be at least')} {formatBytes(minSizeBytes)} ({tr('tools.splitBySize.largestPage', 'largest page size')})
+                                  </p>
+                                );
+                              }
+                              
+                              return (
+                                <p className="text-xs text-primary-400">
+                                  ✓ {tr('tools.splitBySize.validSize', 'Valid size')}: {customSizeStr}
+                                </p>
+                              );
+                            } catch {
+                              return (
+                                <p className="text-xs text-error-400">
+                                  ⚠ {tr('tools.splitBySize.invalidSize', 'Invalid size')}
+                                </p>
+                              );
+                            }
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* File info and preview */}
+                    {files.length > 0 && (
+                      <div className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-surface-400">{tr('tools.splitBySize.original', 'Original file size:')}</span>
+                          <span className="text-xs font-medium text-surface-200">{formatBytes(files[0].size)}</span>
+                        </div>
+                        
+                        {minSizeBytes && (
+                          <div className="flex items-center justify-between pt-2 border-t border-surface-700/50">
+                            <span className="text-xs text-surface-400">{tr('tools.splitBySize.minimumLargest', 'Minimum size (largest page):')}</span>
+                            <span className="text-xs font-medium text-warning-400">{formatBytes(minSizeBytes)}</span>
+                          </div>
+                        )}
+                        
+                        {files[0].size > 0 && (() => {
+                          try {
+                            const sizeToUse = useCustomSize 
+                              ? `${customSizeValue} ${customSizeUnit}`
+                              : maxFileSize;
+                            const maxBytes = parseSizeToBytes(sizeToUse);
+                            const estimatedParts = Math.ceil(files[0].size / maxBytes);
+                            
+                            if (estimatedParts === 1) {
+                              return (
+                                <div className="flex items-center justify-between pt-2 border-t border-surface-700/50">
+                                  <span className="text-xs text-surface-400">{tr('tools.splitBySize.result', 'Result:')}</span>
+                                  <span className="text-xs font-medium text-success-400">
+                                    ✓ {tr('tools.splitBySize.fits', 'File fits in one part')} ({sizeToUse})
+                                  </span>
+                                </div>
+                              );
+                            }
+                            
+                            return (
+                              <div className="flex items-center justify-between pt-2 border-t border-surface-700/50">
+                                <span className="text-xs text-surface-400">{tr('tools.splitBySize.estimatedParts', 'Estimated parts:')}</span>
+                                <span className="text-xs font-medium text-primary-400">
+                                  {estimatedParts} {estimatedParts === 1 ? tr('pagerange.fileLower', 'file') : tr('pagerange.files', 'files')} ({tr('tools.splitBySize.maxEach', 'max')} {sizeToUse} {tr('tools.splitBySize.each', 'each')})
+                                </span>
+                              </div>
+                            );
+                          } catch {
+                            return null;
+                          }
+                        })()}
+                      </div>
+                    )}
+                    
+                    <p className="text-xs text-surface-500 mt-3">
+                      {tr('tools.splitBySize.note', 'PDF will be split into multiple files, each not exceeding the selected size. Useful for email attachments or file size limits.')}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Split by bookmarks */}
+              {tool.id === 'split-by-bookmarks' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.splitByBookmarks.title', 'Split at Bookmark Level')}</p>
+                    
+                    {!bookmarkInfo && files.length > 0 && (
+                      <p className="text-xs text-surface-400 mb-3">{tr('tools.splitByBookmarks.loading', 'Loading bookmark information...')}</p>
+                    )}
+                    
+                    {bookmarkInfo && !bookmarkInfo.hasBookmarks && (
+                      <div className="p-3 rounded-lg bg-error-500/10 border border-error-500/20">
+                        <p className="text-xs text-error-400 font-medium mb-1">⚠ {tr('tools.splitByBookmarks.none', 'No bookmarks found')}</p>
+                        <p className="text-xs text-surface-400">
+                          {tr('tools.splitByBookmarks.noOutline', 'This PDF does not have bookmarks/outline structure. Please use a PDF with bookmarks or try a different tool.')}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {bookmarkInfo && bookmarkInfo.hasBookmarks && (
+                      <>
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs text-surface-400">{tr('tools.splitByBookmarks.available', 'Available levels:')}</p>
+                            <span className="text-xs font-medium text-primary-400">
+                              {bookmarkInfo.count} {bookmarkInfo.count === 1 ? tr('tools.splitByBookmarks.bookmark', 'bookmark') : tr('tools.splitByBookmarks.bookmarks', 'bookmarks')} {tr('tools.splitByBookmarks.found', 'found')}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {bookmarkInfo.levels.map((level) => {
+                              const levelNames: { [key: number]: string } = {
+                                1: tr('tools.splitByBookmarks.level1', 'Level 1 (Chapters)'),
+                                2: tr('tools.splitByBookmarks.level2', 'Level 2 (Sections)'),
+                                3: tr('tools.splitByBookmarks.level3', 'Level 3 (Sub-sections)'),
+                                4: tr('tools.splitByBookmarks.level4', 'Level 4'),
+                                5: tr('tools.splitByBookmarks.level5', 'Level 5'),
+                              };
+                              const levelName = levelNames[level] || `${tr('tools.splitByBookmarks.level', 'Level')} ${level}`;
+                              const countAtLevel = bookmarkInfo.bookmarks?.filter(b => b.level === level).length || 0;
+                              
+                              return (
+                                <button
+                                  key={level}
+                                  onClick={() => setBookmarkLevel(level)}
+                                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                    bookmarkLevel === level
+                                      ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                      : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                                  }`}
+                                >
+                                  {levelName}
+                                  {countAtLevel > 0 && (
+                                    <span className="ml-2 text-xs opacity-75">({countAtLevel})</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        
+                        {bookmarkInfo.bookmarks && bookmarkInfo.bookmarks.length > 0 && (
+                          <div className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 max-h-48 overflow-y-auto">
+                            <p className="text-xs text-surface-400 mb-2">{tr('tools.splitByBookmarks.atLevel', 'Bookmarks at level')} {bookmarkLevel}:</p>
+                            <div className="space-y-1">
+                              {bookmarkInfo.bookmarks
+                                .filter(b => b.level === bookmarkLevel)
+                                .slice(0, 10)
+                                .map((bookmark, idx) => (
+                                  <div key={idx} className="text-xs text-surface-300 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary-400"></span>
+                                    <span className="truncate">{bookmark.title}</span>
+                                    <span className="text-surface-500">({tr('tools.splitByBookmarks.page', 'page')} {bookmark.pageIndex + 1})</span>
+                                  </div>
+                                ))}
+                              {bookmarkInfo.bookmarks.filter(b => b.level === bookmarkLevel).length > 10 && (
+                                <p className="text-xs text-surface-500 mt-1">
+                                  ... {tr('tools.splitByBookmarks.andMore', 'and')} {bookmarkInfo.bookmarks.filter(b => b.level === bookmarkLevel).length - 10} {tr('tools.splitByBookmarks.more', 'more')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <p className="text-xs text-surface-500 mt-3">
+                          {tr('tools.splitByBookmarks.summary', 'PDF will be split at each bookmark of level')} {bookmarkLevel}. {tr('tools.splitByBookmarks.eachCreates', 'Each bookmark will create a separate PDF file.')}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Sanitize / Remove hidden data */}
+              {tool.id === 'remove-hidden-data' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.sanitize.title', 'Sanitize PDF')}</p>
+                    <p className="text-xs text-surface-400 mb-4">
+                      {tr('tools.sanitize.desc', 'Remove all hidden data, metadata, and sensitive information from your PDF for safe sharing.')}
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-surface-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-400"></span>
+                        {tr('tools.sanitize.item.metadata', 'Metadata (author, title, dates, etc.)')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-surface-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-400"></span>
+                        {tr('tools.sanitize.item.js', 'JavaScript & Actions')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-surface-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-400"></span>
+                        {tr('tools.sanitize.item.embedded', 'Embedded Files & Attachments')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-surface-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-400"></span>
+                        {tr('tools.sanitize.item.comments', 'Comments & Annotations')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-surface-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-400"></span>
+                        {tr('tools.sanitize.item.forms', 'Form Field Data')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-surface-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-400"></span>
+                        {tr('tools.sanitize.item.layers', 'Hidden Layers')}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-surface-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success-400"></span>
+                        {tr('tools.sanitize.item.links', 'Cross-references & Links')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-surface-700/50">
+                    <p className="text-xs text-info-400/80">
+                      ℹ️ {tr('tools.sanitize.note', 'All hidden data will be removed. The PDF content (text, images, pages) will remain unchanged.')}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Redact options */}
+              {tool.id === 'redact' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.view.redact.selectTitle', 'Select Areas to Redact')}</p>
+                    <p className="text-xs text-surface-400 mb-3">
+                      {tr('tools.view.redact.selectDesc', 'Click "Select Areas" to draw rectangles over sensitive information that should be permanently blacked out.')}
+                    </p>
+                    <button
+                      onClick={() => setIsRedactSelectorOpen(true)}
+                      className="w-full px-4 py-2.5 rounded-lg bg-error-500/20 border border-error-500/40 text-error-300 hover:bg-error-500/30 transition-colors text-sm font-medium"
+                    >
+                      {tr('tools.view.redact.selectCta', 'Select Areas to Redact')}
+                    </button>
+                  </div>
+                  {redactions.length > 0 && (
+                    <div className="p-3 rounded-lg bg-surface-900/50 border border-surface-600/50">
+                      <p className="text-xs text-surface-300 mb-1">
+                        {redactions.length} {redactions.length !== 1 ? tr('tools.view.redact.areas', 'redaction areas') : tr('tools.view.redact.area', 'redaction area')} {tr('tools.view.redact.selected', 'selected')}
+                      </p>
+                      <button
+                        onClick={() => setRedactions([])}
+                        className="text-xs text-error-400 hover:text-error-300 transition-colors"
+                      >
+                        {tr('tools.view.redact.clearAll', 'Clear all')}
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-xs text-error-400/80">⚠️ {tr('tools.view.redact.permanent', 'Redaction is permanent and cannot be undone')}</p>
+                </div>
+              )}
+
+
+              {/* Invert colors */}
+              {tool.id === 'invert-colors' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-3">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.invert.mode', 'Inversion mode')}</p>
+                  <div className="flex gap-2">
+                    {['Full Invert', 'Dark Mode (Smart)', 'Sepia'].map((m) => (
+                      <button key={m} className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${m === 'Dark Mode (Smart)' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Remove annotations options */}
+              {tool.id === 'remove-annotations' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-3">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.removeAnnotations.title', 'Annotations to remove')}</p>
+                  {['Highlights', 'Sticky Notes', 'Text Comments', 'Drawing Markups', 'Stamps', 'Ink (Freehand)', 'All Annotations'].map((a) => (
+                    <label key={a} className="flex items-center gap-3 cursor-pointer group">
+                      <input type="checkbox" defaultChecked={a === 'All Annotations'} className="w-4 h-4 rounded border-surface-600 bg-surface-800 text-primary-500 focus:ring-primary-500/25" />
+                      <span className="text-sm text-surface-300 group-hover:text-surface-100 transition-colors">{a}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* Crop page options */}
+              {tool.id === 'crop' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.crop.margins', 'Crop margins (mm)')}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['Top', 'Bottom', 'Left', 'Right'].map((side) => (
+                      <div key={side}>
+                        <p className="text-xs text-surface-400 mb-1">{side}</p>
+                        <input type="number" defaultValue={0} min={0} className="w-full px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all" />
+                      </div>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input type="checkbox" defaultChecked className="w-4 h-4 rounded border-surface-600 bg-surface-800 text-primary-500 focus:ring-primary-500/25" />
+                    <span className="text-sm text-surface-300 group-hover:text-surface-100 transition-colors">{tr('tools.crop.applyAll', 'Apply to all pages')}</span>
+                  </label>
+                </div>
+              )}
+
+              {/* Extract images format */}
+              {tool.id === 'extract-images' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.extractImages.format', 'Output format')}</p>
+                  <div className="flex gap-2">
+                    {(['PNG', 'JPEG'] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setExtractImageFormat(f)}
+                        className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          extractImageFormat === f
+                            ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                            : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Optimize images quality */}
+              {tool.id === 'optimize-images' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.optimizeImages.targetQuality', 'Max image size (longest side)')}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        { id: 'screen' as const, label: tr('tools.optimizeImages.profileScreen', 'Screen (~960px)') },
+                        { id: 'ebook' as const, label: tr('tools.optimizeImages.profileEbook', 'eBook (~1600px)') },
+                        { id: 'print' as const, label: tr('tools.optimizeImages.profilePrint', 'Print (~3000px)') },
+                      ]).map(({ id, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setOptimizeTargetProfile(id)}
+                          className={`flex-1 min-w-[100px] px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                            optimizeTargetProfile === id
+                              ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                              : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-baseline mb-2">
+                      <p className="text-sm font-medium text-surface-200">{tr('tools.optimizeImages.imageQuality', 'JPEG quality')}</p>
+                      <span className="text-xs text-surface-500 tabular-nums">{optimizeImageQuality}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={10}
+                      max={100}
+                      value={optimizeImageQuality}
+                      onChange={(e) => setOptimizeImageQuality(Number(e.target.value))}
+                      className="w-full accent-primary-500"
+                    />
+                    <div className="flex justify-between text-xs text-surface-500 mt-1"><span>{tr('tools.optimizeImages.qualityLow', 'Low (smaller size)')}</span><span>{tr('tools.optimizeImages.qualityHigh', 'High (larger size)')}</span></div>
+                  </div>
+                </div>
+              )}
+
+              {/* QR Code options */}
+              {tool.id === 'add-qr-code' && (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                    <div>
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.qrCode.content', 'QR content')}</p>
+                      <input
+                        type="text"
+                        value={qrContent}
+                        onChange={(e) => setQrContent(e.target.value)}
+                        placeholder="https://example.com or any text"
+                        className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                      />
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1">
+                        <div className="flex justify-between mb-2">
+                          <p className="text-sm font-medium text-surface-200">{tr('tools.qrCode.size', 'Size (mm)')}</p>
+                          <span className="text-xs text-surface-500 tabular-nums">{qrSizeMm} mm</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={8}
+                          max={80}
+                          value={qrSizeMm}
+                          onChange={(e) => setQrSizeMm(Number(e.target.value))}
+                          className="w-full accent-primary-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.qrCode.page', 'Pages to add QR')}</p>
+                        <input
+                          type="text"
+                          value={qrPageRange}
+                          onChange={(e) => setQrPageRange(e.target.value)}
+                          placeholder={tr('tools.qrCode.pagePlaceholder', 'All or 1,3-5')}
+                          className="w-full px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                        />
+                        <p className="text-xs text-surface-500 mt-1">{tr('tools.qrCode.pageHint', 'Leave empty to add the QR on every page.')}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.qrCode.position', 'Quick position')}</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(
+                          [
+                            ['Top Left', { x: 0.08, y: 0.08 }],
+                            ['Top Center', { x: 0.5, y: 0.08 }],
+                            ['Top Right', { x: 0.92, y: 0.08 }],
+                            ['Center Left', { x: 0.08, y: 0.5 }],
+                            ['Center', { x: 0.5, y: 0.5 }],
+                            ['Center Right', { x: 0.92, y: 0.5 }],
+                            ['Bottom Left', { x: 0.08, y: 0.92 }],
+                            ['Bottom Center', { x: 0.5, y: 0.92 }],
+                            ['Bottom Right', { x: 0.92, y: 0.92 }],
+                          ] as const
+                        ).map(([label, pos]) => {
+                          const active =
+                            Math.abs(qrPosition.x - pos.x) < 0.04 && Math.abs(qrPosition.y - pos.y) < 0.04;
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => setQrPosition({ x: pos.x, y: pos.y })}
+                              className={`px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                                active
+                                  ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                  : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  {files.length > 0 && (
+                    <QrCodePreview
+                      pdfFile={files[0]}
+                      qrContent={qrContent}
+                      sizeMm={qrSizeMm}
+                      position={qrPosition}
+                      onPositionChange={setQrPosition}
+                      onSizeMmChange={setQrSizeMm}
+                      previewPage={qrPreviewPage}
+                      onPreviewPageChange={setQrPreviewPage}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Barcode options */}
+              {tool.id === 'add-barcode' && (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                    <div>
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.barcode.type', 'Barcode type')}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['CODE128', tr('tools.barcode.typeCode128', 'Code 128')],
+                            ['CODE39', tr('tools.barcode.typeCode39', 'Code 39')],
+                            ['EAN13', tr('tools.barcode.typeEan13', 'EAN-13')],
+                            ['UPC', tr('tools.barcode.typeUpc', 'UPC-A')],
+                            ['ITF14', tr('tools.barcode.typeItf14', 'ITF-14')],
+                            ['QR', tr('tools.barcode.typeQr', 'QR Code')],
+                          ] as [BarcodeFormat, string][]
+                        ).map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setBarcodeFormat(id)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                              barcodeFormat === id
+                                ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-surface-500 mt-2">
+                        {barcodeFormat === 'EAN13' &&
+                          tr('tools.barcode.hintEan', 'EAN-13: 12 or 13 digits.')}
+                        {barcodeFormat === 'UPC' &&
+                          tr('tools.barcode.hintUpc', 'UPC-A: 11 or 12 digits.')}
+                        {barcodeFormat === 'ITF14' &&
+                          tr('tools.barcode.hintItf', 'ITF-14: 13 or 14 digits.')}
+                        {barcodeFormat === 'QR' && tr('tools.barcode.hintQr', 'QR: any text or URL.')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.barcode.data', 'Barcode data')}</p>
+                      <input
+                        type="text"
+                        value={barcodeData}
+                        onChange={(e) => setBarcodeData(e.target.value)}
+                        placeholder={
+                          barcodeFormat === 'QR'
+                            ? 'https://… or text'
+                            : barcodeFormat === 'EAN13'
+                              ? '5901234123457'
+                              : 'Enter data…'
+                        }
+                        className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <p className="text-sm font-medium text-surface-200">{tr('tools.barcode.widthMm', 'Width (mm)')}</p>
+                          <span className="text-xs text-surface-500 tabular-nums">{barcodeWidthMm} mm</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={20}
+                          max={120}
+                          value={barcodeWidthMm}
+                          onChange={(e) => setBarcodeWidthMm(Number(e.target.value))}
+                          className="w-full accent-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <div className="flex justify-between mb-2">
+                          <p className="text-sm font-medium text-surface-200">{tr('tools.barcode.heightMm', 'Height (mm)')}</p>
+                          <span className="text-xs text-surface-500 tabular-nums">{barcodeHeightMm} mm</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={6}
+                          max={50}
+                          value={barcodeHeightMm}
+                          onChange={(e) => setBarcodeHeightMm(Number(e.target.value))}
+                          className="w-full accent-primary-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.barcode.pages', 'Pages')}</p>
+                      <input
+                        type="text"
+                        value={barcodePageRange}
+                        onChange={(e) => setBarcodePageRange(e.target.value)}
+                        placeholder={tr('tools.barcode.pagePlaceholder', 'All or 1,3-5')}
+                        className="w-full px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                      />
+                      <p className="text-xs text-surface-500 mt-1">{tr('tools.barcode.pageHint', 'Leave empty for all pages.')}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.barcode.position', 'Quick position')}</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(
+                          [
+                            ['Top Left', { x: 0.08, y: 0.08 }],
+                            ['Top Center', { x: 0.5, y: 0.08 }],
+                            ['Top Right', { x: 0.92, y: 0.08 }],
+                            ['Center Left', { x: 0.08, y: 0.5 }],
+                            ['Center', { x: 0.5, y: 0.5 }],
+                            ['Center Right', { x: 0.92, y: 0.5 }],
+                            ['Bottom Left', { x: 0.08, y: 0.92 }],
+                            ['Bottom Center', { x: 0.5, y: 0.92 }],
+                            ['Bottom Right', { x: 0.92, y: 0.92 }],
+                          ] as const
+                        ).map(([label, pos]) => {
+                          const active =
+                            Math.abs(barcodePosition.x - pos.x) < 0.04 && Math.abs(barcodePosition.y - pos.y) < 0.04;
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => setBarcodePosition({ x: pos.x, y: pos.y })}
+                              className={`px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                                active
+                                  ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300'
+                                  : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  {files.length > 0 && (
+                    <BarcodePreview
+                      pdfFile={files[0]}
+                      barcodeData={barcodeData}
+                      barcodeFormat={barcodeFormat}
+                      position={barcodePosition}
+                      widthMm={barcodeWidthMm}
+                      heightMm={barcodeHeightMm}
+                      onPositionChange={setBarcodePosition}
+                      onWidthMmChange={setBarcodeWidthMm}
+                      onHeightMmChange={setBarcodeHeightMm}
+                      previewPage={barcodePreviewPage}
+                      onPreviewPageChange={setBarcodePreviewPage}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Bookmark editor */}
+              {tool.id === 'add-bookmarks' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-surface-200">{tr('tools.bookmarks.add', 'Add bookmarks')}</p>
+                    {totalPages != null && (
+                      <p className="text-xs text-surface-500">
+                        {tr('tools.bookmarks.pagesInDoc', '{count} pages in document').replace('{count}', String(totalPages))}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs text-surface-500">
+                    {tr(
+                      'tools.bookmarks.replaceHint',
+                      'Existing bookmarks in the file are replaced with this list. Each entry appears in the PDF reader’s bookmarks panel.',
+                    )}
+                  </p>
+                  <div className="space-y-2">
+                    {bookmarkRows.map((row) => (
+                      <div key={row.id} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={row.title}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setBookmarkRows((prev) =>
+                              prev.map((r) => (r.id === row.id ? { ...r, title: v } : r)),
+                            );
+                          }}
+                          placeholder={tr('tools.bookmarks.titlePlaceholder', 'Bookmark title')}
+                          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                        />
+                        <span className="text-xs text-surface-500 shrink-0">{tr('tools.bookmarks.page', '→ Page')}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={totalPages ?? undefined}
+                          value={row.pageNumber}
+                          onChange={(e) => {
+                            const n = parseInt(e.target.value, 10);
+                            setBookmarkRows((prev) =>
+                              prev.map((r) =>
+                                r.id === row.id ? { ...r, pageNumber: Number.isFinite(n) ? n : 1 } : r,
+                              ),
+                            );
+                          }}
+                          className="w-16 shrink-0 px-2 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm text-center focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                        />
+                        <button
+                          type="button"
+                          disabled={bookmarkRows.length <= 1}
+                          onClick={() =>
+                            setBookmarkRows((prev) => prev.filter((r) => r.id !== row.id))
+                          }
+                          className="p-2 rounded-lg text-surface-500 hover:text-error-400 hover:bg-surface-700/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          aria-label={tr('tools.bookmarks.remove', 'Remove bookmark')}
+                        >
+                          <Trash2 size={16} strokeWidth={2} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBookmarkRows((prev) => [
+                        ...prev,
+                        {
+                          id: `bm-${Date.now()}`,
+                          title: tr('tools.bookmarks.newTitle', 'New bookmark'),
+                          pageNumber: totalPages ? Math.min(prev.length + 1, totalPages) : 1,
+                        },
+                      ])
+                    }
+                    className="text-primary-400 hover:text-primary-300 text-sm font-medium flex items-center gap-1"
+                  >
+                    <Plus size={16} strokeWidth={2} />
+                    {tr('tools.bookmarks.addRow', 'Add bookmark')}
+                  </button>
+                </div>
+              )}
+
+              {/* Hyperlink options */}
+              {tool.id === 'add-hyperlinks' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-surface-200">{tr('tools.hyperlinks.add', 'Add hyperlinks')}</p>
+                    {totalPages != null && (
+                      <p className="text-xs text-surface-500">
+                        {tr('tools.hyperlinks.pagesInDoc', '{count} pages').replace('{count}', String(totalPages))}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs text-surface-500">
+                    {tr(
+                      'tools.hyperlinks.hint',
+                      'Drag the rectangle on the preview to position the clickable area. URLs open in the browser when the reader clicks the link.',
+                    )}
+                  </p>
+                  <div className="space-y-3">
+                    {hyperlinkRows.map((row) => {
+                      const selected = row.id === selectedHyperlinkId;
+                      return (
+                        <div
+                          key={row.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setSelectedHyperlinkId(row.id);
+                            setHyperlinkPreviewPage(row.pageNumber);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setSelectedHyperlinkId(row.id);
+                              setHyperlinkPreviewPage(row.pageNumber);
+                            }
+                          }}
+                          className={`rounded-lg border p-3 space-y-2 transition-colors ${
+                            selected
+                              ? 'border-primary-500/50 bg-primary-500/10'
+                              : 'border-surface-600/40 bg-surface-900/30'
+                          }`}
+                        >
+                          <div className="flex gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-surface-400 mb-1">{tr('tools.hyperlinks.url', 'URL')}</p>
+                              <input
+                                type="text"
+                                value={row.url}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setHyperlinkRows((prev) =>
+                                    prev.map((r) => (r.id === row.id ? { ...r, url: v } : r)),
+                                  );
+                                }}
+                                placeholder="https://example.com"
+                                className="w-full px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25"
+                              />
+                            </div>
+                            <div className="w-20 shrink-0">
+                              <p className="text-xs text-surface-400 mb-1">{tr('tools.hyperlinks.page', 'Page')}</p>
+                              <input
+                                type="number"
+                                min={1}
+                                max={totalPages ?? undefined}
+                                value={row.pageNumber}
+                                onChange={(e) => {
+                                  const n = parseInt(e.target.value, 10);
+                                  setHyperlinkRows((prev) =>
+                                    prev.map((r) =>
+                                      r.id === row.id
+                                        ? { ...r, pageNumber: Number.isFinite(n) ? n : 1 }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                                className="w-full px-2 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm text-center"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs text-surface-400 mb-1">{tr('tools.hyperlinks.linkText', 'Label (optional)')}</p>
+                            <input
+                              type="text"
+                              value={row.label}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setHyperlinkRows((prev) =>
+                                  prev.map((r) => (r.id === row.id ? { ...r, label: v } : r)),
+                                );
+                              }}
+                              placeholder={tr('tools.hyperlinks.labelPlaceholder', 'Visible text in the box')}
+                              className="w-full px-3 py-2 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25"
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              disabled={hyperlinkRows.length <= 1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setHyperlinkRows((prev) => {
+                                  const next = prev.filter((r) => r.id !== row.id);
+                                  if (selectedHyperlinkId === row.id && next.length > 0) {
+                                    setSelectedHyperlinkId(next[0].id);
+                                    setHyperlinkPreviewPage(next[0].pageNumber);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="text-xs text-error-400 hover:text-error-300 disabled:opacity-30"
+                            >
+                              {tr('tools.hyperlinks.remove', 'Remove link')}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setHyperlinkRows((prev) => {
+                        const id = `hl-${Date.now()}`;
+                        const next = [
+                          ...prev,
+                          {
+                            id,
+                            url: 'https://',
+                            label: '',
+                            pageNumber: totalPages ? Math.min(prev.length + 1, totalPages) : 1,
+                            rect: { x: 0.08, y: 0.88, w: 0.4, h: 0.06 },
+                          },
+                        ];
+                        setSelectedHyperlinkId(id);
+                        setHyperlinkPreviewPage(next[next.length - 1].pageNumber);
+                        return next;
+                      })
+                    }
+                    className="text-primary-400 hover:text-primary-300 text-sm font-medium flex items-center gap-1"
+                  >
+                    <Plus size={16} strokeWidth={2} />
+                    {tr('tools.hyperlinks.addRow', 'Add link')}
+                  </button>
+                  {files.length > 0 && (
+                    <HyperlinkPreview
+                      pdfFile={files[0]}
+                      rows={hyperlinkRows}
+                      selectedId={selectedHyperlinkId}
+                      onSelectId={setSelectedHyperlinkId}
+                      onRectChange={(id, rect) => {
+                        setHyperlinkRows((prev) =>
+                          prev.map((r) => (r.id === id ? { ...r, rect: clampHyperlinkRect(rect) } : r)),
+                        );
+                      }}
+                      previewPage={hyperlinkPreviewPage}
+                      onPreviewPageChange={setHyperlinkPreviewPage}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Bates numbering options */}
+              {tool.id === 'bates-numbering' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.batesNumbering.prefix', 'Prefix')}</p>
+                      <input type="text" placeholder="e.g. DOC-" className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.batesNumbering.startNumber', 'Starting number')}</p>
+                      <input type="number" defaultValue={1} min={1} className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.batesNumbering.suffix', 'Suffix')}</p>
+                      <input type="text" placeholder="(optional)" className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.batesNumbering.digits', 'Number of digits')}</p>
+                    <div className="flex gap-2">
+                      {['4', '5', '6', '8'].map((d) => (
+                        <button key={d} className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${d === '6' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{d} digits</button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-surface-500">{tr('tools.batesNumbering.preview', 'Preview: DOC-000001')}</p>
+                </div>
+              )}
+
+              {/* Color space conversion */}
+              {tool.id === 'color-space' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.colorSpace.convert', 'Convert from → to')}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 flex gap-2">
+                      {['RGB → CMYK', 'CMYK → RGB'].map((conv) => (
+                        <button key={conv} className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${conv.startsWith('RGB') ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{conv}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-surface-500">{tr('tools.colorSpace.note', 'CMYK is required for professional printing. RGB is the standard for the web.')}</p>
+                </div>
+              )}
+
+              {/* PDF statistics info */}
+              {tool.id === 'pdf-statistics' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.pdfStatistics.title', 'Statistics to collect')}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Page Count', 'Word Count', 'Character Count', 'Image Count', 'Font List', 'File Size Breakdown', 'Color Profile', 'PDF Version'].map((stat) => (
+                      <div key={stat} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-700/20 border border-surface-700/30">
+                        <CircleCheck size={16} strokeWidth={2} className="text-info-400" />
+                        <span className="text-sm text-surface-300">{stat}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Linearize info */}
+              {tool.id === 'linearize' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <div className="flex items-start gap-3">
+                    <Zap size={20} strokeWidth={2} className="text-success-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-surface-200">{tr('tools.linearize.title', 'Fast web view')}</p>
+                      <p className="text-xs text-surface-400 mt-1">{tr('tools.linearize.description', 'Linearization restructures the PDF so it starts displaying in the browser before the full file is loaded. This is ideal for PDFs opened over the internet.')}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PDF/A conformance */}
+              {tool.id === 'pdfa' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.pdfA.level', 'PDF/A compliance level')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['PDF/A-1b', 'PDF/A-1a', 'PDF/A-2b', 'PDF/A-2a', 'PDF/A-3b'].map((l) => (
+                      <button key={l} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${l === 'PDF/A-2b' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{l}</button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-surface-500 mt-3">{tr('tools.pdfA.note', 'PDF/A-2b is the most common for archiving. PDF/A-3b supports embedded files.')}</p>
+                </div>
+              )}
+
+              {/* PDF/X profile */}
+              {tool.id === 'pdfx' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.pdfX.profile', 'PDF/X profile')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['PDF/X-1a', 'PDF/X-3', 'PDF/X-4'].map((p) => (
+                      <button key={p} className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${p === 'PDF/X-4' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{p}</button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-surface-500 mt-3">{tr('tools.pdfX.note', 'PDF/X-4 is recommended for modern print workflows. PDF/X-1a is for compatibility with older systems.')}</p>
+                </div>
+              )}
+
+              {/* Grayscale mode */}
+              {tool.id === 'grayscale' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.grayscale.method', 'Grayscale method')}</p>
+                  <div className="flex gap-2">
+                    {['Luminosity', 'Average', 'Desaturation'].map((m) => (
+                      <button key={m} className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${m === 'Luminosity' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fill & Sign */}
+              {tool.id === 'fill-sign' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.fillSign.signature', 'Signature')}</p>
+                  <div className="flex gap-2 mb-3">
+                    {['Draw', 'Type', 'Upload Image'].map((type) => (
+                      <button key={type} className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all ${type === 'Draw' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{type}</button>
+                    ))}
+                  </div>
+                  <div className="h-24 rounded-lg border-2 border-dashed border-surface-600/50 flex items-center justify-center text-surface-500 text-sm">
+                    Draw or type your signature here (stub)
+                  </div>
+                </div>
+              )}
+
+              {/* Validate profile */}
+              {tool.id === 'validate' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50">
+                  <p className="text-sm font-medium text-surface-200 mb-3">{tr('tools.validate.profile', 'Validation profile')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['PDF Structure', 'PDF/A-1b', 'PDF/A-2b', 'PDF/X-4', 'WCAG 2.1'].map((p) => (
+                      <button key={p} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${p === 'PDF Structure' ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300' : 'bg-surface-700/30 border border-surface-600/30 text-surface-400 hover:bg-surface-700/50'}`}>{p}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Certificate signing */}
+              {tool.id === 'certificate' && (
+                <div className="p-4 rounded-xl bg-surface-800/40 border border-surface-700/50 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.certificate.file', 'Certificate File (.pfx / .p12)')}</p>
+                    <label className="block cursor-pointer">
+                      <div className="h-16 rounded-lg border-2 border-dashed border-surface-600/50 flex items-center justify-center text-surface-500 text-sm hover:border-primary-500/30 transition-colors">
+                        {certificateFile ? certificateFile.name : tr('tools.certificate.drop', 'Click or drop your certificate file here')}
+                      </div>
+                      <input
+                        type="file"
+                        accept=".pfx,.p12"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setCertificateFile(file);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                    {certificateFile && (
+                      <button
+                        type="button"
+                        onClick={() => setCertificateFile(null)}
+                        className="mt-2 text-xs text-error-400 hover:text-error-300 transition-colors"
+                      >
+                        {tr('tools.certificate.remove', 'Remove certificate')}
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.certificate.password', 'Certificate Password')}</p>
+                    <input
+                      type="password"
+                      value={certificatePassword}
+                      onChange={(e) => setCertificatePassword(e.target.value)}
+                      placeholder={tr('tools.certificate.passwordPlaceholder', 'Enter certificate password')}
+                      className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.certificate.reason', 'Reason for Signing (Optional)')}</p>
+                    <input
+                      type="text"
+                      value={certificateReason}
+                      onChange={(e) => setCertificateReason(e.target.value)}
+                      placeholder={tr('tools.certificate.reasonPlaceholder', 'e.g. Document approval')}
+                      className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-surface-200 mb-2">{tr('tools.certificate.location', 'Location (Optional)')}</p>
+                    <input
+                      type="text"
+                      value={certificateLocation}
+                      onChange={(e) => setCertificateLocation(e.target.value)}
+                      placeholder={tr('tools.certificate.locationPlaceholder', 'e.g. City, Country')}
+                      className="w-full px-4 py-2.5 rounded-lg bg-surface-900/50 border border-surface-600/50 text-surface-200 placeholder-surface-500 text-sm focus:outline-none focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/25 transition-all"
+                    />
+                  </div>
+                  <div className="pt-3 border-t border-surface-700/50">
+                    <p className="text-xs text-info-400/80">
+                      ℹ️ {tr('tools.certificate.note', 'Note: A visual signature will be added to the PDF with certificate information. For full digital signature support, server-side processing may be required.')}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-6 p-4 rounded-xl border border-error-500/30 bg-error-500/5 animate-fade-in">
+              <div className="flex items-start gap-3">
+                <X size={20} strokeWidth={2} className="text-error-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-error-300 mb-1">{tr('common.error', 'Error')}</p>
+                  <p className="text-sm text-error-400/80">{error}</p>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-error-400 hover:text-error-300 transition-colors"
+                  aria-label={tr('common.dismissError', 'Dismiss error')}
+                >
+                  <X size={16} strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Action Button */}
+          {files.length > 0 && (
+            <div className="animate-fade-in">
+              <button
+                onClick={handleProcess}
+                disabled={
+                  isProcessing ||
+                  (config.acceptMultiple && tool.id !== 'images-to-pdf' && files.length < 2) ||
+                  (tool.id === 'images-to-pdf' && files.length < 1) ||
+                  (tool.id === 'split' && !pageRange.trim()) ||
+                  (tool.id === 'split-by-size' && files.length === 0) ||
+                  (tool.id === 'split-by-bookmarks' && (!bookmarkInfo || !bookmarkInfo.hasBookmarks)) ||
+                  ((tool.id === 'delete-pages' || tool.id === 'extract-pages') && !pageRange.trim()) ||
+                  (tool.id === 'reorder' && (!totalPages || pageOrder.length === 0)) ||
+                  (tool.id === 'rotate' && (!totalPages || Object.keys(pageRotations).length === 0))
+                }
+                className={`
+                  w-full btn-primary btn-lg font-semibold justify-center
+                  ${isProcessing ? 'opacity-75 cursor-wait' : ''}
+                  ${(config.acceptMultiple && tool.id !== 'images-to-pdf' && files.length < 2) || (tool.id === 'images-to-pdf' && files.length < 1) || (tool.id === 'split' && !pageRange.trim()) || (tool.id === 'split-by-size' && files.length === 0) || ((tool.id === 'delete-pages' || tool.id === 'extract-pages') && !pageRange.trim()) || (tool.id === 'reorder' && (!totalPages || pageOrder.length === 0)) || (tool.id === 'rotate' && (!totalPages || Object.keys(pageRotations).length === 0)) ? 'opacity-50 cursor-not-allowed' : ''}
+                `}
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="spinner-sm" />
+                    {tr('tools.view.processing', 'Processing...')}
+                  </>
+                ) : (
+                  <>
+                    {tool.icon}
+                    {tr(`tools.view.${tool.id}.actionLabel`, config.actionLabel)}
+                  </>
+                )}
+              </button>
+              {config.acceptMultiple && tool.id !== 'images-to-pdf' && files.length < 2 && (
+                <p className="text-xs text-surface-500 text-center mt-2">
+                  {tr('tools.view.validation.atLeast2Files', 'Please add at least 2 files')}
+                </p>
+              )}
+              {tool.id === 'images-to-pdf' && files.length < 1 && (
+                <p className="text-xs text-surface-500 text-center mt-2">
+                  {tr('tools.view.validation.atLeast1Image', 'Please add at least 1 image file')}
+                </p>
+              )}
+              {tool.id === 'split' && !pageRange.trim() && (
+                <p className="text-xs text-surface-500 text-center mt-2">
+                  {tr('tools.view.validation.enterPageRanges', 'Please enter page ranges (e.g., "1-3, 5, 8-10")')}
+                </p>
+              )}
+              {(tool.id === 'delete-pages' || tool.id === 'extract-pages') && !pageRange.trim() && (
+                <p className="text-xs text-surface-500 text-center mt-2">
+                  {tool.id === 'delete-pages' 
+                    ? tr('tools.view.validation.selectPagesDelete', 'Please select pages to delete')
+                    : tr('tools.view.validation.selectPagesExtract', 'Please select pages to extract')}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Tool Info Section */}
+          {files.length > 0 && <ToolInfo tool={tool} />}
+        </>
+      )}
+
+      {/* Signature Pad Modal */}
+      {tool.id === 'sign' && isSignaturePadOpen && (
+        <SignaturePad
+          isOpen={isSignaturePadOpen}
+          onClose={() => setIsSignaturePadOpen(false)}
+          onSave={(dataUrl) => {
+            setSignatureData(dataUrl);
+            setIsSignaturePadOpen(false);
+            // Automatically open position selector after saving signature
+            if (files.length > 0) {
+              setTimeout(() => {
+                setIsPositionSelectorOpen(true);
+              }, 100);
+            }
+          }}
+          position={{ x: signatureX, y: signatureY }}
+          pageWidth={800}
+          pageHeight={1000}
+          zoom={1}
+        />
+      )}
+
+      {/* Signature Position Selector */}
+      {tool.id === 'sign' && isPositionSelectorOpen && files.length > 0 && (
+        <SignaturePositionSelector
+          isOpen={isPositionSelectorOpen}
+          onClose={() => setIsPositionSelectorOpen(false)}
+          pdfFile={files[0]}
+          signatureData={
+            signatureType === 'type' 
+              ? (() => {
+                  // Create a temporary canvas for typed signature preview
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 400;
+                  canvas.height = 150;
+                  const ctx = canvas.getContext('2d');
+                  if (ctx && typedSignature) {
+                    // Transparent background
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#000000';
+                    ctx.font = `${signatureFontSize * 2}px Helvetica, Arial, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(typedSignature, canvas.width / 2, canvas.height / 2);
+                    return canvas.toDataURL();
+                  }
+                  return '';
+                })()
+              : signatureData
+          }
+          signatureType={signatureType}
+          onPositionSelected={(pageNumber, x, y, widthPts, heightPts) => {
+            setSignaturePage(pageNumber);
+            setSignatureX(x);
+            setSignatureY(y);
+            if (widthPts && heightPts) {
+              setSignatureWidthPts(Math.max(40, Math.min(1000, Math.round(widthPts))));
+              setSignatureHeightPts(Math.max(20, Math.min(600, Math.round(heightPts))));
+            }
+            setIsPositionSelectorOpen(false);
+          }}
+        />
+      )}
+
+      {/* Redact Selector */}
+      {tool.id === 'redact' && isRedactSelectorOpen && files.length > 0 && (
+        <RedactSelector
+          isOpen={isRedactSelectorOpen}
+          onClose={() => setIsRedactSelectorOpen(false)}
+          pdfFile={files[0]}
+          onRedactionsSelected={(newRedactions) => {
+            setRedactions(newRedactions);
+            setIsRedactSelectorOpen(false);
+          }}
+        />
+      )}
+
+      {/* Watermark Preview */}
+      {tool.id === 'add-watermark' && isWatermarkPreviewOpen && files.length > 0 && (
+        <WatermarkPreview
+          isOpen={isWatermarkPreviewOpen}
+          onClose={() => setIsWatermarkPreviewOpen(false)}
+          pdfFile={files[0]}
+          watermarks={watermarks}
+          onWatermarksUpdate={setWatermarks}
+        />
+      )}
+    </div>
+  );
+}

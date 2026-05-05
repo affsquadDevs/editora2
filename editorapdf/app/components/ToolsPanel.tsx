@@ -1,0 +1,401 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import Link from 'next/link';
+import ToolView from './ToolView';
+import { useAppTranslations } from '../i18n/TranslationProvider';
+import {
+  // Organize & Pages
+  FilePlus2, Scissors, Trash2, FileOutput, GripVertical, RotateCw,
+  FileUp, Copy, ArrowDownUp, HardDrive, Bookmark,
+  // Security & Protection
+  Lock, PenTool, EyeOff, ShieldAlert,
+  Award,
+  // Convert
+  Image, FileImage, FileText, Table, AlignLeft, TableProperties,
+  Code, Hash, Presentation, Globe, Sheet,
+  // Edit & Enhance
+  Minimize2, Droplets, ListOrdered, PenLine, Crop,
+  Maximize2, Contrast, Moon, Layers, MessageSquareX,
+  // Content & Media
+  ImageDown, ImageOff, Zap, QrCode, ScanBarcode, BookMarked,
+  Link2, Paperclip,
+} from 'lucide-react';
+
+export interface PdfTool {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+interface ToolCategory {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  tools: PdfTool[];
+}
+
+const ICON_SIZE = 24;
+const ICON_STROKE = 1.75;
+
+const toolCategories: ToolCategory[] = [
+  // ═══════════════════════════════════════════
+  // 1. ORGANIZE & PAGES
+  // ═══════════════════════════════════════════
+  {
+    id: 'organize',
+    title: 'Organize & Pages',
+    icon: <GripVertical size={20} strokeWidth={1.5} />,
+    tools: [
+      {
+        id: 'merge', title: 'Merge PDF', description: 'Combine multiple PDF files into one document', color: 'primary',
+        icon: <FilePlus2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'split', title: 'Split PDF', description: 'Split a PDF into separate files by page ranges', color: 'accent',
+        icon: <Scissors size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'delete-pages', title: 'Delete Pages', description: 'Remove specific pages from your PDF', color: 'error',
+        icon: <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'extract-pages', title: 'Extract Pages', description: 'Extract specific pages into a new PDF', color: 'info',
+        icon: <FileOutput size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'reorder', title: 'Reorder Pages', description: 'Drag & drop to rearrange PDF pages', color: 'primary',
+        icon: <GripVertical size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'rotate', title: 'Rotate Pages', description: 'Rotate all or specific pages in your PDF', color: 'warning',
+        icon: <RotateCw size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'insert-blank', title: 'Insert Blank Pages', description: 'Add empty pages at specific positions', color: 'accent',
+        icon: <FileUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'duplicate-pages', title: 'Duplicate Pages', description: 'Duplicate specific pages within a PDF', color: 'success',
+        icon: <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'reverse-order', title: 'Reverse Page Order', description: 'Flip the order of all pages in your PDF', color: 'info',
+        icon: <ArrowDownUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'split-by-size', title: 'Split by Size', description: 'Split PDF so each part fits a size limit (e.g. 10 MB)', color: 'warning',
+        icon: <HardDrive size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'split-by-bookmarks', title: 'Split by Bookmarks', description: 'Split PDF based on bookmark/chapter structure', color: 'error',
+        icon: <Bookmark size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 2. SECURITY & PROTECTION
+  // ═══════════════════════════════════════════
+  {
+    id: 'security',
+    title: 'Security & Protection',
+    icon: <Lock size={20} strokeWidth={1.5} />,
+    tools: [
+      {
+        id: 'sign', title: 'Digital Signature', description: 'Add a digital signature or e-sign your PDF', color: 'primary',
+        icon: <PenTool size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'redact', title: 'Redact PDF', description: 'Permanently black out sensitive information', color: 'error',
+        icon: <EyeOff size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'remove-hidden-data', title: 'Sanitize PDF', description: 'Remove hidden data, metadata, scripts for safe sharing', color: 'accent',
+        icon: <ShieldAlert size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'certificate', title: 'Certificate Sign', description: 'Sign PDF with X.509 digital certificate', color: 'accent',
+        icon: <Award size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 3. CONVERT
+  // ═══════════════════════════════════════════
+  {
+    id: 'convert',
+    title: 'Convert',
+    icon: <ArrowDownUp size={20} strokeWidth={1.5} />,
+    tools: [
+      {
+        id: 'pdf-to-images', title: 'PDF to Images', description: 'Convert PDF pages to PNG, JPEG, or WebP', color: 'accent',
+        icon: <Image size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'images-to-pdf', title: 'Images to PDF', description: 'Combine images (PNG, JPEG, WebP) into a PDF', color: 'primary',
+        icon: <FileImage size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'pdf-to-word', title: 'PDF to Word', description: 'Convert PDF to editable DOCX document', color: 'info',
+        icon: <FileText size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'pdf-to-excel', title: 'PDF to Excel', description: 'Extract tables from PDF to XLSX spreadsheet', color: 'success',
+        icon: <Table size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'pdf-to-text', title: 'PDF to Text', description: 'Extract all text content from PDF to TXT', color: 'accent',
+        icon: <AlignLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'pdf-to-csv', title: 'PDF to CSV', description: 'Extract tabular data from PDF to CSV files', color: 'success',
+        icon: <TableProperties size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'pdf-to-html', title: 'PDF to HTML', description: 'Convert PDF document to a web page', color: 'error',
+        icon: <Code size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'pdf-to-markdown', title: 'PDF to Markdown', description: 'Convert PDF content to Markdown format', color: 'primary',
+        icon: <Hash size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'pdf-to-pptx', title: 'PDF to PowerPoint', description: 'Convert PDF pages to PPTX presentation', color: 'warning',
+        icon: <Presentation size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'html-to-pdf', title: 'HTML to PDF', description: 'Convert any webpage or HTML file to PDF', color: 'error',
+        icon: <Globe size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'word-to-pdf', title: 'Word to PDF', description: 'Convert DOCX / DOC documents to PDF', color: 'info',
+        icon: <FileUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'excel-to-pdf', title: 'Excel to PDF', description: 'Convert XLSX spreadsheets to PDF', color: 'success',
+        icon: <Sheet size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 4. EDIT & ENHANCE
+  // ═══════════════════════════════════════════
+  {
+    id: 'edit',
+    title: 'Edit & Enhance',
+    icon: <PenLine size={20} strokeWidth={1.5} />,
+    tools: [
+      {
+        id: 'compress', title: 'Compress PDF', description: 'Reduce file size while maintaining quality', color: 'success',
+        icon: <Minimize2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'add-watermark', title: 'Add Watermark', description: 'Overlay text or image watermark on pages', color: 'info',
+        icon: <Droplets size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'page-numbers', title: 'Add Page Numbers', description: 'Insert page numbers with custom positioning', color: 'primary',
+        icon: <ListOrdered size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'crop', title: 'Crop Pages', description: 'Crop or trim PDF page margins', color: 'error',
+        icon: <Crop size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'resize', title: 'Resize Pages', description: 'Change page size (A4, Letter, custom)', color: 'info',
+        icon: <Maximize2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'grayscale', title: 'Grayscale PDF', description: 'Convert colored PDF to black & white', color: 'primary',
+        icon: <Contrast size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'invert-colors', title: 'Invert Colors', description: 'Invert PDF colors for dark mode reading', color: 'accent',
+        icon: <Moon size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'flatten', title: 'Flatten PDF', description: 'Flatten form fields and annotations into content', color: 'warning',
+        icon: <Layers size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'remove-annotations', title: 'Remove Annotations', description: 'Strip all comments, highlights, and notes', color: 'error',
+        icon: <MessageSquareX size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════
+  // 5. CONTENT & MEDIA
+  // ═══════════════════════════════════════════
+  {
+    id: 'content',
+    title: 'Content & Media',
+    icon: <Image size={20} strokeWidth={1.5} />,
+    tools: [
+      {
+        id: 'extract-images', title: 'Extract Images', description: 'Pull out all embedded images from a PDF', color: 'accent',
+        icon: <ImageDown size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'remove-images', title: 'Remove Images', description: 'Strip all images from PDF, keep text only', color: 'error',
+        icon: <ImageOff size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'optimize-images', title: 'Optimize Images', description: 'Downscale and optimize images inside PDF', color: 'success',
+        icon: <Zap size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'add-qr-code', title: 'Add QR Code', description: 'Insert QR codes with links or text onto pages', color: 'primary',
+        icon: <QrCode size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'add-barcode', title: 'Add Barcode', description: 'Insert barcodes (Code128, EAN, UPC) into PDF', color: 'warning',
+        icon: <ScanBarcode size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'add-bookmarks', title: 'Add Bookmarks', description: 'Create or edit bookmarks and table of contents', color: 'info',
+        icon: <BookMarked size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'add-hyperlinks', title: 'Add Hyperlinks', description: 'Add or edit clickable links in your PDF', color: 'accent',
+        icon: <Link2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+      {
+        id: 'add-attachments', title: 'Embed Attachments', description: 'Embed files (images, docs, data) inside PDF', color: 'primary',
+        icon: <Paperclip size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+      },
+    ],
+  },
+];
+
+// Flatten all tools for lookup
+export const allTools = toolCategories.flatMap(c => c.tools);
+
+// Calculate tool counts at module level to ensure consistency between server and client
+export const totalToolsCount = allTools.length;
+export const availableToolsCount = allTools.length;
+
+// Export toolCategories for use in routes
+export { toolCategories };
+
+const colorMap: Record<string, { bg: string; border: string; text: string; iconBg: string; hoverBorder: string }> = {
+  primary: { bg: 'bg-primary-500/5', border: 'border-primary-500/20', text: 'text-primary-400', iconBg: 'bg-primary-500/15', hoverBorder: 'hover:border-primary-500/40' },
+  accent:  { bg: 'bg-accent-500/5',  border: 'border-accent-500/20',  text: 'text-accent-400',  iconBg: 'bg-accent-500/15',  hoverBorder: 'hover:border-accent-500/40' },
+  success: { bg: 'bg-success-500/5', border: 'border-success-500/20', text: 'text-success-400', iconBg: 'bg-success-500/15', hoverBorder: 'hover:border-success-500/40' },
+  error:   { bg: 'bg-error-500/5',   border: 'border-error-500/20',   text: 'text-error-400',   iconBg: 'bg-error-500/15',   hoverBorder: 'hover:border-error-500/40' },
+  warning: { bg: 'bg-warning-500/5', border: 'border-warning-500/20', text: 'text-warning-400', iconBg: 'bg-warning-500/15', hoverBorder: 'hover:border-warning-500/40' },
+  info:    { bg: 'bg-info-500/5',    border: 'border-info-500/20',    text: 'text-info-400',    iconBg: 'bg-info-500/15',    hoverBorder: 'hover:border-info-500/40' },
+};
+
+export default function ToolsPanel() {
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const { t, locale } = useAppTranslations();
+  const tr = (key: string, fallback: string) => t(key) === key ? fallback : t(key);
+  const visibleCategories = useMemo(() => 
+    activeCategory
+      ? toolCategories.filter(c => c.id === activeCategory)
+      : toolCategories,
+    [activeCategory]
+  );
+
+  const totalTools = allTools.length;
+
+  return (
+    <div className="w-full max-w-5xl mx-auto animate-fade-in">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">{t('tools.page.title')}</h2>
+        <p className="text-surface-400 text-base max-w-2xl mx-auto mb-4">
+          {t('tools.page.subtitle')}
+        </p>
+        <p className="text-xs text-surface-500">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-success-500" />
+            {totalTools} {t('tools.available')}
+          </span>
+        </p>
+      </div>
+
+      {/* Category Filter */}
+      <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
+        <button
+          onClick={() => setActiveCategory(null)}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${!activeCategory ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300 shadow-sm' : 'bg-surface-800/40 border border-surface-700/50 text-surface-400 hover:text-surface-200 hover:border-surface-600/50'}`}
+        >
+          {tr('tools.all', 'All Tools')}
+        </button>
+        {toolCategories.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${activeCategory === cat.id ? 'bg-primary-500/20 border border-primary-500/40 text-primary-300 shadow-sm' : 'bg-surface-800/40 border border-surface-700/50 text-surface-400 hover:text-surface-200 hover:border-surface-600/50'}`}
+          >
+            {cat.icon}
+            <span className="hidden sm:inline">{tr(`tools.category.${cat.id}`, cat.title)}</span>
+            <span className="sm:hidden">{tr(`tools.category.${cat.id}`, cat.title).split(' ')[0]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Categories & Tools */}
+      <div className="space-y-10">
+        {visibleCategories.map(category => (
+          <div key={category.id} className="animate-fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-2 text-surface-300">
+                {category.icon}
+                <h3 className="text-lg font-semibold">{tr(`tools.category.${category.id}`, category.title)}</h3>
+              </div>
+              <div className="flex-1 h-px bg-surface-700/50"></div>
+              <span className="text-xs text-surface-500 font-medium">{category.tools.length} {t('tools.count')}</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {category.tools.map((tool, index) => {
+                const colors = colorMap[tool.color] || colorMap.primary;
+                const commonProps = {
+                  className: `relative group text-left p-5 rounded-2xl border transition-all duration-200 ${colors.bg} ${colors.border} ${colors.hoverBorder} hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] cursor-pointer animate-fade-in-up`,
+                  style: { animationDelay: `${index * 40}ms` } as React.CSSProperties,
+                };
+                
+                const content = (
+                  <>
+                    <div className={`w-12 h-12 rounded-xl ${colors.iconBg} flex items-center justify-center mb-3 ${colors.text} transition-transform duration-200 group-hover:scale-110`}>
+                      {tool.icon}
+                    </div>
+                    <h3 className="text-base font-semibold text-white mb-1 group-hover:text-surface-100">
+                      {tr(`tools.items.${tool.id}.title`, tool.title)}
+                    </h3>
+                    <p className="text-sm text-surface-400 leading-relaxed">
+                      {tr(`tools.items.${tool.id}.desc`, tool.description)}
+                    </p>
+                    <div className={`absolute bottom-4 right-4 ${colors.text} opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0`}>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                    </div>
+                  </>
+                );
+                
+                return (
+                  <Link key={tool.id} href={`/${locale}/tools/${tool.id}`} {...commonProps}>
+                    {content}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Privacy note */}
+      <div className="mt-10 flex items-center justify-center gap-2 text-xs text-surface-500">
+        <Lock size={14} strokeWidth={2} />
+        <span>{tr('tools.privacyNote', 'All tools process files locally — your documents never leave your device')}</span>
+      </div>
+    </div>
+  );
+}

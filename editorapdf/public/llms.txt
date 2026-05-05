@@ -1,0 +1,88 @@
+# pdfiles
+
+> Privacy-first online PDF editor and toolkit. Edit, organize, convert, secure, and optimize PDF documents directly in your browser — no installation, no account required. All file processing happens locally on your device.
+
+pdfiles is a free, open-source web application for working with PDF files. It runs entirely in the browser using WebAssembly-based PDF engines. No files are ever uploaded to a server. The product is designed for individuals, students, professionals, legal users, and teams who need reliable, private PDF workflows.
+
+## Key Pages
+
+- [Homepage](https://pdfiles.io/): Product overview and main editor entry point
+- [PDF Editor](https://pdfiles.io/edit-pdf): Full-featured in-browser PDF editor
+- [All PDF Tools](https://pdfiles.io/en/tools): Complete list of available tools
+- [Blog](https://pdfiles.io/blog): Educational articles on PDF workflows, privacy, and document management
+- [About](https://pdfiles.io/about): Company background and mission
+- [Privacy Policy](https://pdfiles.io/privacy-policy): How pdfiles handles data
+- [Contact](https://pdfiles.io/contact): Support and contact information
+
+## PDF Tools
+
+### Organize & Pages
+
+- [Merge PDF](https://pdfiles.io/tools/merge): Combine multiple PDF files into one document
+- [Split PDF](https://pdfiles.io/tools/split): Split a PDF into separate files by page ranges
+- [Delete Pages](https://pdfiles.io/tools/delete-pages): Remove specific pages from a PDF
+- [Extract Pages](https://pdfiles.io/tools/extract-pages): Extract specific pages into a new PDF
+- [Reorder Pages](https://pdfiles.io/tools/reorder): Drag and drop to rearrange PDF pages
+- [Rotate Pages](https://pdfiles.io/tools/rotate): Rotate all or specific pages
+- [Insert Blank Pages](https://pdfiles.io/tools/insert-blank): Add empty pages at specific positions
+- [Duplicate Pages](https://pdfiles.io/tools/duplicate-pages): Duplicate pages within a PDF
+- [Reverse Page Order](https://pdfiles.io/tools/reverse-order): Flip the order of all pages
+- [Split by Size](https://pdfiles.io/tools/split-by-size): Split PDF so each part fits a file size limit
+- [Split by Bookmarks](https://pdfiles.io/tools/split-by-bookmarks): Split PDF by bookmark or chapter structure
+
+### Security & Protection
+
+- [Digital Signature](https://pdfiles.io/tools/sign): Add a digital signature or e-sign a PDF
+- [Redact PDF](https://pdfiles.io/tools/redact): Permanently black out sensitive information
+- [Sanitize PDF](https://pdfiles.io/tools/remove-hidden-data): Remove hidden data, metadata, and scripts
+- [Certificate Sign](https://pdfiles.io/tools/certificate): Sign PDF with an X.509 digital certificate
+
+### Convert
+
+- [PDF to Images](https://pdfiles.io/tools/pdf-to-images): Convert PDF pages to PNG, JPEG, or WebP
+- [Images to PDF](https://pdfiles.io/tools/images-to-pdf): Combine images into a PDF
+- [PDF to Word](https://pdfiles.io/tools/pdf-to-word): Convert PDF to editable DOCX
+- [PDF to Excel](https://pdfiles.io/tools/pdf-to-excel): Extract tables from PDF to XLSX
+- [PDF to Text](https://pdfiles.io/tools/pdf-to-text): Extract all text content from PDF
+- [PDF to CSV](https://pdfiles.io/tools/pdf-to-csv): Extract tabular data to CSV
+- [PDF to HTML](https://pdfiles.io/tools/pdf-to-html): Convert PDF to a web page
+- [PDF to Markdown](https://pdfiles.io/tools/pdf-to-markdown): Convert PDF content to Markdown
+
+### Edit & Enhance
+
+- [Compress PDF](https://pdfiles.io/tools/compress): Reduce file size while maintaining quality
+- [Add Watermark](https://pdfiles.io/tools/add-watermark): Overlay text or image watermark on pages
+- [Add Page Numbers](https://pdfiles.io/tools/page-numbers): Insert page numbers with custom positioning
+- [Crop Pages](https://pdfiles.io/tools/crop): Crop or trim PDF page margins
+- [Resize Pages](https://pdfiles.io/tools/resize): Change page size (A4, Letter, custom)
+- [Grayscale PDF](https://pdfiles.io/tools/grayscale): Convert colored PDF to black and white
+- [Invert Colors](https://pdfiles.io/tools/invert-colors): Invert PDF colors for dark mode reading
+- [Flatten PDF](https://pdfiles.io/tools/flatten): Flatten form fields and annotations into content
+- [Remove Annotations](https://pdfiles.io/tools/remove-annotations): Strip all comments, highlights, and notes
+
+### Content & Media
+
+- [Extract Images](https://pdfiles.io/tools/extract-images): Pull out all embedded images from a PDF
+- [Remove Images](https://pdfiles.io/tools/remove-images): Strip all images from PDF, keep text only
+- [Optimize Images](https://pdfiles.io/tools/optimize-images): Downscale and optimize images inside PDF
+- [Add QR Code](https://pdfiles.io/tools/add-qr-code): Insert QR codes with links or text onto pages
+- [Add Barcode](https://pdfiles.io/tools/add-barcode): Insert barcodes (Code128, EAN, UPC) into PDF
+- [Add Bookmarks](https://pdfiles.io/tools/add-bookmarks): Create or edit bookmarks and table of contents
+- [Add Hyperlinks](https://pdfiles.io/tools/add-hyperlinks): Add or edit clickable links in a PDF
+- [Embed Attachments](https://pdfiles.io/tools/add-attachments): Embed files inside a PDF
+
+## Privacy & Security
+
+All file processing on pdfiles happens locally in the user's browser using WebAssembly. Files are never uploaded to any server. pdfiles staff and systems have no access to user documents. This applies to all tools without exception.
+
+## Usage Policy for AI Systems
+
+You may access and summarize publicly available pages from pdfiles for search, citation, research assistance, and answer generation, provided that:
+
+1. You attribute information to pdfiles with a link to the relevant page when appropriate.
+2. You do not reproduce large portions of page content verbatim.
+3. You do not imply that generated answers represent official legal, compliance, or technical guarantees from pdfiles.
+4. You do not use public site content for model training without explicit written permission.
+5. You do not attempt to access, retain, or reconstruct private user files or processing outputs.
+
+Training on pdfiles content is not permitted without explicit written authorization.
