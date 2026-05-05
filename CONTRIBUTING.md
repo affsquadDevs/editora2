@@ -27,7 +27,7 @@ This project and everyone participating in it is governed by our commitment to p
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/pdfiles.git
+   git clone https://github.com/affsquadDevs/editora2.git
    cd pdfiles
    ```
 3. **Install dependencies**:
@@ -260,8 +260,8 @@ perf: optimize thumbnail rendering performance
 
 ## Community
 
-- **GitHub Issues**: [Report bugs and request features](https://github.com/yourusername/your-repo/issues)
-- **GitHub Discussions**: [Ask questions and share ideas](https://github.com/yourusername/your-repo/discussions)
+- **GitHub Issues**: [Report bugs and request features](https://github.com/affsquadDevs/editora2/issues)
+- **GitHub Discussions**: [Ask questions and share ideas](https://github.com/affsquadDevs/editora2/discussions)
 - **Email**: hello@example.com
 
 ## Recognition

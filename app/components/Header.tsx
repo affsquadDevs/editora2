@@ -69,7 +69,7 @@ export default function Header({ showCloseButton = false, onClose, closeButtonLa
               {t('nav.contact')}
             </Link>
             <a 
-              href="https://github.com/yourusername/your-repo" 
+              href="https://github.com/affsquadDevs/editora2" 
               target="_blank" 
               rel="noopener noreferrer"
               className="nav-link flex items-center gap-1.5"

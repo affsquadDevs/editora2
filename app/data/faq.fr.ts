@@ -52,7 +52,7 @@ export const faqDataFr: FAQItem[] = [
   },
   {
     question: 'pdfiles est-il vraiment gratuit et open source ?',
-    answer: 'Oui ! pdfiles est 100% gratuit et open source sous licence MIT. Le code source complet est disponible sur GitHub : https://github.com/yourusername/your-repo. Vous pouvez consulter, modifier et contribuer au code.',
+    answer: 'Oui ! pdfiles est 100% gratuit et open source sous licence MIT. Le code source complet est disponible sur GitHub : https://github.com/affsquadDevs/editora2. Vous pouvez consulter, modifier et contribuer au code.',
   },
   {
     question: 'Quel est le meilleur éditeur PDF gratuit et open source ?',

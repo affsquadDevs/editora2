@@ -9,8 +9,8 @@ export const SITE_URL = (
 
 export const SITE_NAME = 'pdfiles'
 
-/** Public GitHub repo URL for nav / JSON-LD — replace with your fork */
-export const GITHUB_REPO_URL = 'https://github.com/yourusername/your-repo'
+/** Public GitHub repo URL for nav / JSON-LD — production repository link */
+export const GITHUB_REPO_URL = 'https://github.com/affsquadDevs/editora2'
 
 export const CONTACT_EMAIL = 'hello@example.com'
 

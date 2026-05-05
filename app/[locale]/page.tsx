@@ -625,7 +625,7 @@ export default function Home({ params }: { params: { locale: AppLocale } }) {
                     </p>
                     <div className="flex flex-wrap items-center gap-3 justify-center md:justify-start">
                       <a
-                        href="https://github.com/yourusername/your-repo"
+                        href="https://github.com/affsquadDevs/editora2"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-primary btn-md"
@@ -636,7 +636,7 @@ export default function Home({ params }: { params: { locale: AppLocale } }) {
                         {t('oss.view')}
                       </a>
                       <a
-                        href="https://github.com/yourusername/your-repo/issues"
+                        href="https://github.com/affsquadDevs/editora2/issues"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-secondary btn-md"
@@ -644,7 +644,7 @@ export default function Home({ params }: { params: { locale: AppLocale } }) {
                         {t('oss.issue')}
                       </a>
                       <a
-                        href="https://github.com/yourusername/your-repo#readme"
+                        href="https://github.com/affsquadDevs/editora2#readme"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-secondary btn-md"

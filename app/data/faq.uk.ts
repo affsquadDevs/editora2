@@ -52,7 +52,7 @@ export const faqDataUk: FAQItem[] = [
   },
   {
     question: 'Чи справді pdfiles безкоштовний і з відкритим кодом?',
-    answer: 'Так. pdfiles — 100% open‑source під ліцензією MIT. Код доступний на GitHub: https://github.com/yourusername/your-repo.',
+    answer: 'Так. pdfiles — 100% open‑source під ліцензією MIT. Код доступний на GitHub: https://github.com/affsquadDevs/editora2.',
   },
   {
     question: 'Який найкращий безкоштовний open‑source PDF‑редактор?',

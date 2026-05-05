@@ -6,9 +6,9 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![GitHub](https://img.shields.io/badge/GitHub-repo-black?logo=github)](https://github.com/yourusername/your-repo)
+[![GitHub](https://img.shields.io/badge/GitHub-repo-black?logo=github)](https://github.com/affsquadDevs/editora2)
 
-[**Live Demo**](http://localhost:3000) · [**Report Bug**](https://github.com/yourusername/your-repo/issues) · [**Request Feature**](https://github.com/yourusername/your-repo/issues) · [**Contributing**](CONTRIBUTING.md)
+[**Live Demo**](http://localhost:3000) · [**Report Bug**](https://github.com/affsquadDevs/editora2/issues) · [**Request Feature**](https://github.com/affsquadDevs/editora2/issues) · [**Contributing**](CONTRIBUTING.md)
 
 </div>
 
@@ -35,7 +35,7 @@ All processing happens **locally on your device**. Your PDF files never leave yo
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/your-repo.git
+git clone https://github.com/affsquadDevs/editora2.git
 cd your-repo
 
 # Install dependencies
@@ -111,7 +111,7 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/your-repo.git
+git clone https://github.com/affsquadDevs/editora2.git
 cd your-repo
 
 # Install dependencies
@@ -332,7 +332,7 @@ Please read our [**Contributing Guide**](CONTRIBUTING.md) to get started.
 
 ### Ways to Contribute
 
-- 🐛 **Report bugs** and suggest features via [GitHub Issues](https://github.com/yourusername/your-repo/issues)
+- 🐛 **Report bugs** and suggest features via [GitHub Issues](https://github.com/affsquadDevs/editora2/issues)
 - 💻 **Submit pull requests** with bug fixes or new features
 - 📖 **Improve documentation** and add examples
 - ⭐ **Star the repo** to show your support
@@ -363,8 +363,8 @@ pdfiles is built on the shoulders of giants:
 ## 🌐 Community & Support
 
 - **Website**: set `NEXT_PUBLIC_SITE_URL` for production URLs (dev: [http://localhost:3000](http://localhost:3000))
-- **GitHub**: [yourusername/your-repo](https://github.com/yourusername/your-repo)
-- **Issues**: [Report bugs or request features](https://github.com/yourusername/your-repo/issues)
+- **GitHub**: [affsquadDevs/editora2](https://github.com/affsquadDevs/editora2)
+- **Issues**: [Report bugs or request features](https://github.com/affsquadDevs/editora2/issues)
 - **Email**: hello@example.com
 
 ## ⭐ Show Your Support
@@ -384,6 +384,6 @@ Every bit of support helps the project grow and improve!
 
 **Made with ❤️ by the pdfiles Team**
 
-[Website](http://localhost:3000) · [GitHub](https://github.com/yourusername/your-repo) · [Contributing](CONTRIBUTING.md)
+[Website](http://localhost:3000) · [GitHub](https://github.com/affsquadDevs/editora2) · [Contributing](CONTRIBUTING.md)
 
 </div>

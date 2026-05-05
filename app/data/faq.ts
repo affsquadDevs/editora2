@@ -71,7 +71,7 @@ export const faqData: FAQItem[] = [
   },
   {
     question: 'Is pdfiles really free and open source?',
-    answer: 'Yes! pdfiles is 100% free and open source under MIT License. The complete source code is available on GitHub at https://github.com/yourusername/your-repo. You can view, modify, and contribute to the code.',
+    answer: 'Yes! pdfiles is 100% free and open source under MIT License. The complete source code is available on GitHub at https://github.com/affsquadDevs/editora2. You can view, modify, and contribute to the code.',
     keywords: ['open source pdf editor', 'free open source pdf tool', 'github pdf editor', 'MIT license pdf editor'],
   },
   {

@@ -41,7 +41,7 @@ export default function FAQPage() {
               <p className="text-surface-400 mb-6">Contact the team or open a project issue with your scenario.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/contact" className="btn-primary btn-md inline-flex">Contact Team</Link>
-                <a href="https://github.com/yourusername/your-repo" target="_blank" rel="noopener noreferrer" className="btn-secondary btn-md inline-flex">Project Repository</a>
+                <a href="https://github.com/affsquadDevs/editora2" target="_blank" rel="noopener noreferrer" className="btn-secondary btn-md inline-flex">Project Repository</a>
               </div>
             </div>
           </div>
